@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using BS;
 
 namespace BoggleServerTest
 {
@@ -7,8 +8,56 @@ namespace BoggleServerTest
     public class BoggleServerTests
     {
         [TestMethod]
-        public void TestMethod1()
+        public void TestCMDArgs()
         {
+            /*
+             When running the program the following values should be used:
+
+             * The number of seconds that each Boggle game should last. This should be a positive integer.
+             * The pathname of a file that contains all the legal words. The file should contain one word 
+               per line.
+             * An optional string consisting of exactly 16 letters. If provided, this will be used to initialize
+               each Boggle board.
+             */
+
+            // Assert errors are being returned correctly when the user passes illegal parameters
+            // as command line arguments.
+            
         }
+
+        [TestMethod]
+        public void TestEstablishConnection()
+        {
+            // When a connection has been established, the client sends a command to 
+            // the server. The command is "PLAY @", where @ is the name of the player.
+            // Assert that the server receives the command PLAY @
+        }
+
+        [TestMethod]
+        public void TestPairClients()
+        {
+            // Once the server has received connections from two clients that are ready 
+            // to play, it pairs them in a game.
+
+            // The server begins the game by sending a command to each client. The command 
+            // is "START $ # @"
+            // Assert clients receive command START $ # @
+        }
+
+        [TestMethod]
+        public void TestClientDisconnect()
+        {
+            // If at any point during a game a client disconnects or becomes inaccessible, the 
+            // game ends. The server should send the command "TERMINATED" to the surviving client 
+            // and then close the socket.
+        }
+
+        [TestMethod]
+        public void TestIllegalClientProtocol()
+        {
+            // If a client deviates from the protocol at any point, the server should send a command 
+            // to the offending client consisting of "IGNORING " followed by the offending command.
+        }
+
     }
 }

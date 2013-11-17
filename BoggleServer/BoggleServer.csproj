@@ -7,7 +7,7 @@
     <ProjectGuid>{07A6CBE8-68B3-401B-8751-CD8584675EE4}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>BoggleServer</RootNamespace>
+    <RootNamespace>BS</RootNamespace>
     <AssemblyName>BoggleServer</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>

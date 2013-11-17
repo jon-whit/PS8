@@ -53,6 +53,12 @@
     <Compile Include="BoggleServerTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BoggleServer\BoggleServer.csproj">
+      <Project>{07a6cbe8-68b3-401b-8751-cd8584675ee4}</Project>
+      <Name>BoggleServer</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
       <ItemGroup>

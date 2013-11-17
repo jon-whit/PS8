@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.IO;
 
-namespace BoggleServer
+namespace BS
 {
     class BoggleServer
     {
@@ -50,7 +51,15 @@ namespace BoggleServer
         /// <param name="OptionalString">An optional string to construct a BoggleBoard with.</param>
         public BoggleServer(int GameLength, string DictionaryPath, string OptionalString)
         {
+            try
+            {
+                this.GameLength = GameLength;
+                this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
+            }
+            catch (Exception)
+            {
 
+            }
         }
 
         /// <summary>
@@ -67,7 +76,15 @@ namespace BoggleServer
         /// <param name="OptionalString">An optional string to construct a BoggleBoard with.</param>
         public BoggleServer(int PortNum, int GameLength, string DictionaryPath, string OptionalString)
         {
+            try
+            {
+                this.GameLength = GameLength;
+                this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
+            }
+            catch (Exception)
+            {
 
+            }
         }
     }
 }

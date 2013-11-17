@@ -5,6 +5,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoggleServer", "BoggleServe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BoggleServerTest", "BoggleServerTest\BoggleServerTest.csproj", "{D218C262-E287-4CF7-BE87-A2C79B35DC8A}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{CC448DA1-DA4A-4E32-9800-6AB5FEB9BF91}"
+	ProjectSection(SolutionItems) = preProject
+		Solution Items\dictionary.txt = Solution Items\dictionary.txt
+		README.txt = README.txt
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
