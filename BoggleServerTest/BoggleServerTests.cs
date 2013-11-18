@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using BS;
 
@@ -22,7 +24,128 @@ namespace BoggleServerTest
 
             // Assert errors are being returned correctly when the user passes illegal parameters
             // as command line arguments.
+
+            StringWriter sw1 = new StringWriter();
             
+            Console.SetOut(sw1);
+
+            // Illegally pass more than three parameters.
+            BoggleServer.Main(new string[] { "arg1", "arg2", "arg3", "arg4" });
+
+            string expected = string.Format("Error: Invalid arguments.\r\nusage: BoggleServer time dictionary_path optional_string\r\n");
+            string actual = sw1.ToString();
+
+            Assert.AreEqual(expected, actual);
+            sw1.Close();
+
+            // Create a new StringWriter for the next test.
+            sw1 = new StringWriter();
+            Console.SetOut(sw1);
+
+            // Illegally pass less than two parameters.
+            BoggleServer.Main(new string[] { });
+
+            actual = sw1.ToString();
+
+            Assert.AreEqual(expected, actual);
+            sw1.Close();
+            
+            // The first parameter must be a number. If it is not, then the user has supplied illegal
+            // parameters.
+            
+            // Create a new StringWriter for the next test.
+            sw1 = new StringWriter();
+            Console.SetOut(sw1);
+
+            // Illegally pass less than two parameters.
+            BoggleServer.Main(new string[] {"dictionary.txt", "200"});
+
+            actual = sw1.ToString();
+
+            Assert.AreEqual(expected, actual);
+            sw1.Close();
+
+            // The second paramter must be a valid filepath. If it is not, then the user has supplied 
+            // illegal paramters.
+            
+            // Create a new StringWriter for the next test.
+            sw1 = new StringWriter();
+            Console.SetOut(sw1);
+
+            // Illegally pass less than two parameters.
+            BoggleServer.Main(new string[] { "200", "illegal.txt" });
+
+            actual = sw1.ToString();
+
+            Assert.AreEqual(expected, actual);
+            sw1.Close();
+
+            // Test a non-positive time input.
+
+            // Create a new StringWriter for the next test.
+            sw1 = new StringWriter();
+            Console.SetOut(sw1);
+
+            // Illegally pass less than two parameters.
+            BoggleServer.Main(new string[] { "-1", "illegal.txt" });
+
+            actual = sw1.ToString();
+
+            Assert.AreEqual(expected, actual);
+            sw1.Close();
+
+            // Create a new StringWriter for the next test.
+            sw1 = new StringWriter();
+            Console.SetOut(sw1);
+
+            // Illegally pass less than two parameters.
+            BoggleServer.Main(new string[] { "0", "illegal.txt" });
+
+            actual = sw1.ToString();
+
+            Assert.AreEqual(expected, actual);
+            sw1.Close();
+
+            // The optional third parameter must be 16 characters. If it is not, then the user has
+            // supplied illegal parameters.
+
+            // Create a new StringWriter for the next test.
+            sw1 = new StringWriter();
+            Console.SetOut(sw1);
+
+            // Illegally pass less than two parameters.
+            BoggleServer.Main(new string[] { "200", "..\\..\\..\\Solution Items\\dictionary.txt", "arg" });
+
+            actual = sw1.ToString();
+
+            Assert.AreEqual(expected, actual);
+            sw1.Close();
+
+            // The optional third parameter must be 16 characters and all letters. If it is not, then 
+            // the user has supplied illegal parameters.
+
+            // Create a new StringWriter for the next test.
+            sw1 = new StringWriter();
+            Console.SetOut(sw1);
+
+            // Illegally pass less than two parameters.
+            BoggleServer.Main(new string[] { "200", "..\\..\\..\\Solution Items\\dictionary.txt", "jimiergsatnesap1" });
+
+            actual = sw1.ToString();
+
+            Assert.AreEqual(expected, actual);
+            sw1.Close();
+
+            BoggleServer.Main(new string[] { "200", "..\\..\\..\\Solution Items\\dictionary.txt", "jimiergsatnesapa" });
+        }
+
+        [TestCleanup]
+        public void CleanupConsoleOutput()
+        {
+            // Reset the standard console output stream.
+            StreamWriter StandardOutput = new StreamWriter(Console.OpenStandardOutput());
+            StandardOutput.AutoFlush = true;
+            Console.SetOut(StandardOutput);
         }
 
         [TestMethod]

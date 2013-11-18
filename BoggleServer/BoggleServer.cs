@@ -4,15 +4,20 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
+
 
 namespace BS
 {
-    class BoggleServer
+    public class BoggleServer
     {
-        // Main method called upon when the user runs this program. Here we 
-        // will initialize a new BoggleServer with the command line args
-        // and run the server.
-        static void Main(string[] args)
+        /// <summary>
+        /// Main method called upon when the user runs this program. Here we 
+        /// will initialize a new BoggleServer with the command line args
+        /// and run the server.
+        /// </summary>
+        public static void Main(string[] args)
         {
             // If the user supplied less than two args or more than three,
             // then print an error message and terminate.
@@ -20,7 +25,7 @@ namespace BS
             {
                 Console.WriteLine("Error: Invalid arguments.");
                 Console.WriteLine("usage: BoggleServer time dictionary_path optional_string");
-                Environment.Exit(0);
+                return;
             }
 
             // Otherwise the user must have provided the correct number of
@@ -28,13 +33,46 @@ namespace BS
 
             // Parse the arguments and ensure that they are valid. If they are not, then
             // print a descriptive error message and terminate the program.
+            
+            // If the first argument wasn't an integer, then print an error message
+            // and terminate.
+            int GameLength = 0;
+            if (!int.TryParse(args[0], out GameLength) || GameLength <= 0)
+            {
+                Console.WriteLine("Error: Invalid arguments.");
+                Console.WriteLine("usage: BoggleServer time dictionary_path optional_string");
+                return;
+            }
+
+            // At this point, the first argument must be an integer value. Continue parsing the
+            // remaining arguments..
+
+            // If the second argument (the filepath) wasn't a valid filepath, then print an error
+            // message and terminate.
+            if (!File.Exists(args[1]))
+            {
+                Console.WriteLine("Error: Invalid arguments.");
+                Console.WriteLine("usage: BoggleServer time dictionary_path optional_string");
+                return;
+            }
+
+
+            // If there was a third argument, then it must be atleast 16 characters and it must only
+            // contains letters.
+            if (args.Length == 3 && (args[2].Length != 16 || !args[2].All(Char.IsLetter)))
+            {
+                args[2].All(Char.IsLetter);
+                Console.WriteLine("Error: Invalid arguments.");
+                Console.WriteLine("usage: BoggleServer time dictionary_path optional_string");
+                return;
+            }
 
             // After paramter validation, start the Boggle game server.
-            //BoggleServer GameServer = new BoggleServer(time, dictionary_path, optional_string);
-            //GameServer.StartServer();
+            BoggleServer GameServer = new BoggleServer(GameLength, args[1], args[2]);
         }
 
         // Member variables used to organize a BoggleServer:
+        private TcpListener UnderlyingServer;
         private int GameLength;
         private HashSet<string> DictionaryWords;
 
@@ -53,6 +91,7 @@ namespace BS
         {
             try
             {
+                this.UnderlyingServer = new TcpListener(IPAddress.Any, 2000);
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
             }
@@ -78,6 +117,7 @@ namespace BS
         {
             try
             {
+                this.UnderlyingServer = new TcpListener(IPAddress.Any, PortNum);
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
             }
