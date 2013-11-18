@@ -9,6 +9,7 @@ namespace BoggleServerTest
     [TestClass]
     public class BoggleServerTests
     {
+        
         [TestMethod]
         public void TestCMDArgs()
         {
