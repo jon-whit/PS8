@@ -178,7 +178,7 @@ namespace BoggleServerTest
             private object p4;
 
             // Timeout used in test case
-            private static int timeout = 2000;
+            private static int timeout = 8000;
 
             public void run()
             {

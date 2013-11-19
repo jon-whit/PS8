@@ -90,6 +90,8 @@ namespace BS
         private HashSet<string> DictionaryWords;
         private PlayerData WaitingPlayer;
         private string OptionalString;
+        private readonly Object CommandReceived;
+        private readonly Object ConnectionReceivedLock;
 
         /// <summary>
         /// Constructor used to initialize a new BoggleServer. This will initialize the GameLength
@@ -106,13 +108,17 @@ namespace BS
             try
             {
                 this.UnderlyingServer = new TcpListener(IPAddress.Any, 2000);
+                UnderlyingServer.Start();
+
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
                 this.WaitingPlayer = null;
-                
+                this.CommandReceived = new Object();
+                this.ConnectionReceivedLock = new Object();
+
                 if (OptionalString != null)
                     this.OptionalString = OptionalString;
-
+                Console.WriteLine("The server has started");
                 // Begin accepting clients
                 UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
                 
@@ -143,6 +149,8 @@ namespace BS
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
                 this.WaitingPlayer = null;
+                this.CommandReceived = new Object();
+                this.ConnectionReceivedLock = new Object();
 
                 if (OptionalString != null)
                     this.OptionalString = OptionalString;
@@ -170,54 +178,58 @@ namespace BS
         /// <param name="PlayerStringSocket"></param>
         private void PlayReceived(String IncomingCommand, Exception e, Object PlayerStringSocket)
         {
-            // If the message received is PLAY @ with @ being the name of the player then do the following
-            if(IncomingCommand.StartsWith("PLAY "))
+            lock (CommandReceived)
             {
-                // Get the name of the player from the incoming string. 
-                String PlayerName = IncomingCommand.Substring(5);
-                
-                // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
-                PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket) PlayerStringSocket);
-
-                // If there is nobody else queued up to play, then add the player to a queue to wait
-                // for another connection.
-                if (WaitingPlayer == null)
+                // If the message received is PLAY @ with @ being the name of the player then do the following
+                if (IncomingCommand.StartsWith("PLAY "))
                 {
-                    WaitingPlayer = NewPlayer;
+                    // Get the name of the player from the incoming string. 
+                    String PlayerName = IncomingCommand.Substring(5);
+
+                    // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
+                    PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket)PlayerStringSocket);
+
+                    // If there is nobody else queued up to play, then add the player to a queue to wait
+                    // for another connection.
+                    if (WaitingPlayer == null)
+                    {
+                        WaitingPlayer = NewPlayer;
+                        Console.WriteLine("Player1 connected");
+                    }
+
+                    // If there is somebody waiting for a game then get both players and 
+                    // Build a game object with them. 
+                    else
+                    {
+                        // Get the waiting player's data
+                        PlayerData FirstPlayer = WaitingPlayer;
+
+                        // There are no more players waiting. Set WaitingPlayer = null for
+                        // future checks.
+                        WaitingPlayer = null;
+
+                        // Build a new Game object with both players.
+                        Game NewGame;
+                        if (OptionalString == null)
+                            NewGame = new Game(FirstPlayer, NewPlayer, GameLength);
+                        else
+                            NewGame = new Game(FirstPlayer, NewPlayer, GameLength, OptionalString);
+
+                        // Start the game on a new Thread.
+                        ThreadStart WorkLoad = new ThreadStart(NewGame.RunGame);
+                        Thread GameThread = new Thread(WorkLoad);
+                    }
                 }
 
-                // If there is somebody waiting for a game then get both players and 
-                // Build a game object with them. 
+                // If the client didn't send the PLAY command, then continue waiting for a command
+                // from the client.
                 else
                 {
-                    // Get the waiting player's data
-                    PlayerData FirstPlayer = WaitingPlayer;
-                    
-                    // There are no more players waiting. Set WaitingPlayer = null for
-                    // future checks.
-                    WaitingPlayer = null;
-                    
-                    // Build a new Game object with both players.
-                    Game NewGame;
-                    if (OptionalString == null)
-                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength);
-                    else
-                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength, OptionalString);
+                    StringSocket ss;
+                    ss = (StringSocket)PlayerStringSocket;
 
-                    // Start the game on a new Thread.
-                    ThreadStart WorkLoad = new ThreadStart(NewGame.RunGame);
-                    Thread GameThread = new Thread(WorkLoad);
+                    ss.BeginReceive(PlayReceived, ss);
                 }
-            }
-
-            // If the client didn't send the PLAY command, then continue waiting for a command
-            // from the client.
-            else
-            {
-                StringSocket ss;
-                ss = (StringSocket) PlayerStringSocket;
-
-                ss.BeginReceive(PlayReceived, ss);
             }
         }
 
@@ -230,12 +242,15 @@ namespace BS
         /// </summary>
         private void ConnectionReceived(IAsyncResult ar)
         {
-            Socket socket = UnderlyingServer.EndAcceptSocket(ar);
-            StringSocket ss = new StringSocket(socket, UTF8Encoding.Default);
+            lock (ConnectionReceivedLock)
+            {
+                Socket socket = UnderlyingServer.EndAcceptSocket(ar);
+                StringSocket ss = new StringSocket(socket, UTF8Encoding.Default);
 
-            ss.BeginReceive(PlayReceived, ss);
+                ss.BeginReceive(PlayReceived, ss);
 
-            UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
+                UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
+            }
         }
 
         /// <summary>
