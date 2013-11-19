@@ -3,6 +3,9 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using BS;
+using System.Net.Sockets;
+using CustomNetworking;
+using System.Text;
 
 namespace BoggleServerTest
 {
@@ -152,9 +155,31 @@ namespace BoggleServerTest
         [TestMethod]
         public void TestEstablishConnection()
         {
+            //Create a new Boggle Server which should begin listening for connection requests
+            BoggleServer TestServer = new BoggleServer(200, "dictionary.txt", null);
+
+            //Create a new client to connect with the Boggle Server.
+            TcpClient TestClient = new TcpClient("localhost", 2000);
+
+            //Create a client socket and then a client string socket.
+            Socket ClientSocket = TestClient.Client;
+            StringSocket ClientSS = new StringSocket(ClientSocket, new UTF8Encoding());
+
+            //Now our client needs to send the command PLAY @ and the server will receive it. 
+            ClientSS.BeginSend("PLAY TestName\n", PlayCallback, "PlayTest");
+            
+            
+
+
             // When a connection has been established, the client sends a command to 
             // the server. The command is "PLAY @", where @ is the name of the player.
             // Assert that the server receives the command PLAY @
+        }
+
+        public void PlayCallback(Exception error, Object Payload)
+        {
+            Assert.AreEqual(null, error);
+            Assert.AreEqual("PlayTest", Payload);
         }
 
         [TestMethod]
