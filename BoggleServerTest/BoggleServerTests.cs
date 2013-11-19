@@ -6,6 +6,8 @@ using BS;
 using System.Net.Sockets;
 using CustomNetworking;
 using System.Text;
+using System.Threading;
+using System.Text.RegularExpressions;
 
 namespace BoggleServerTest
 {
@@ -153,33 +155,105 @@ namespace BoggleServerTest
         }
 
         [TestMethod]
-        public void TestEstablishConnection()
+        public void TestConnection()
         {
-            //Create a new Boggle Server which should begin listening for connection requests
-            BoggleServer TestServer = new BoggleServer(200, "dictionary.txt", null);
-
-            //Create a new client to connect with the Boggle Server.
-            TcpClient TestClient = new TcpClient("localhost", 2000);
-
-            //Create a client socket and then a client string socket.
-            Socket ClientSocket = TestClient.Client;
-            StringSocket ClientSS = new StringSocket(ClientSocket, new UTF8Encoding());
-
-            //Now our client needs to send the command PLAY @ and the server will receive it. 
-            ClientSS.BeginSend("PLAY TestName\n", PlayCallback, "PlayTest");
-            
-            
-
-
-            // When a connection has been established, the client sends a command to 
-            // the server. The command is "PLAY @", where @ is the name of the player.
-            // Assert that the server receives the command PLAY @
+            new TestEstablishConnection().run();
         }
 
-        public void PlayCallback(Exception error, Object Payload)
+        [TestClass]
+        public class TestEstablishConnection
         {
-            Assert.AreEqual(null, error);
-            Assert.AreEqual("PlayTest", Payload);
+            // Data that is shared across threads
+            private ManualResetEvent mre1;
+            private ManualResetEvent mre2;
+            private ManualResetEvent mre3;
+            private ManualResetEvent mre4;
+            private String s1;
+            private object p1;
+            private String s2;
+            private object p2;
+            private String s3;
+            private object p3;
+            private String s4;
+            private object p4;
+
+            // Timeout used in test case
+            private static int timeout = 2000;
+
+            public void run()
+            {
+                try
+                {
+                    // This will coordinate communication between the threads of the test cases
+                    mre1 = new ManualResetEvent(false);
+                    mre2 = new ManualResetEvent(false);
+                    mre3 = new ManualResetEvent(false);
+                    mre4 = new ManualResetEvent(false);
+
+                    // Create a new Boggle Server which should begin listening for connection requests
+                    BoggleServer TestServer = new BoggleServer(200, "..//..//..//Solution Items//dictionary.txt", null);
+
+                    // Create a two clients to connect with the Boggle Server.
+                    TcpClient TestClient1 = new TcpClient("localhost", 2000);
+                    TcpClient TestClient2 = new TcpClient("localhost", 2000);
+
+                    // Create a client socket and then a client string socket.
+                    Socket ClientSocket1 = TestClient1.Client;
+                    Socket ClientSocket2 = TestClient2.Client;
+                    StringSocket ClientSS1 = new StringSocket(ClientSocket1, new UTF8Encoding());
+                    StringSocket ClientSS2 = new StringSocket(ClientSocket2, new UTF8Encoding());
+
+                    // Now our client needs to send the command PLAY @ and the server will receive it. 
+                    ClientSS1.BeginSend("PLAY Client1\n", PlayCallback1, 1);
+                    ClientSS2.BeginSend("PLAY Client2\n", PlayCallback2, 2);
+
+                    // When a connection has been established, the client sends a command to 
+                    // the server. The command is "PLAY @", where @ is the name of the player.
+                    // Assert that the server receives the command PLAY @
+                    ClientSS1.BeginReceive(CompletedReceive1, 1);
+                    ClientSS2.BeginReceive(CompletedReceive2, 2);
+
+                    string ExpectedExpression = @"^(START) \d+ [a-zA-Z]{16} [a-zA-Z1-9]+";
+                    Assert.AreEqual(true, mre1.WaitOne(timeout), "Timed out waiting 1");
+                    Assert.IsTrue(Regex.IsMatch(s1, ExpectedExpression));
+                    Assert.AreEqual(true, mre2.WaitOne(timeout), "Timed out waiting 2");
+                    Assert.IsTrue(Regex.IsMatch(s2, ExpectedExpression));   
+                }
+                catch (Exception e)
+                {
+                    throw e;
+                }
+            }
+
+            // This is the callback for the first receive request.  We can't make assertions anywhere
+            // but the main thread, so we write the values to member variables so they can be tested
+            // on the main thread.
+            private void CompletedReceive1(String s, Exception o, object payload)
+            {
+                s1 = s;
+                p1 = payload;
+                mre1.Set();
+            }
+
+            // This is the callback for the second receive request.
+            private void CompletedReceive2(String s, Exception o, object payload)
+            {
+                s2 = s;
+                p2 = payload;
+                mre2.Set();
+            }
+
+            private void PlayCallback1(Exception error, Object Payload)
+            {
+                Assert.AreEqual(null, error);
+                Assert.AreEqual(1, Payload);
+            }
+
+            private void PlayCallback2(Exception error, Object Payload)
+            {
+                Assert.AreEqual(null, error);
+                Assert.AreEqual(2, Payload);
+            }
         }
 
         [TestMethod]

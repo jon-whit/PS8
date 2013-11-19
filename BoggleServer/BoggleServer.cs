@@ -77,14 +77,19 @@ namespace BS
             }
 
             // After paramter validation, start the Boggle game server.
-            BoggleServer GameServer = new BoggleServer(GameLength, args[1], args[2]);
+            BoggleServer GameServer;
+            if (args.Length == 2)
+                GameServer = new BoggleServer(GameLength, args[1], null);
+            else
+                GameServer = new BoggleServer(GameLength, args[1], args[2]);
         }
 
         // Member variables used to organize a BoggleServer:
         private TcpListener UnderlyingServer;
         private int GameLength;
         private HashSet<string> DictionaryWords;
-        private Queue<PlayerData> WaitingPlayers;
+        private PlayerData WaitingPlayer;
+        private string OptionalString;
 
         /// <summary>
         /// Constructor used to initialize a new BoggleServer. This will initialize the GameLength
@@ -103,6 +108,10 @@ namespace BS
                 this.UnderlyingServer = new TcpListener(IPAddress.Any, 2000);
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
+                this.WaitingPlayer = null;
+                
+                if (OptionalString != null)
+                    this.OptionalString = OptionalString;
 
                 // Begin accepting clients
                 UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
@@ -133,6 +142,13 @@ namespace BS
                 this.UnderlyingServer = new TcpListener(IPAddress.Any, PortNum);
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
+                this.WaitingPlayer = null;
+
+                if (OptionalString != null)
+                    this.OptionalString = OptionalString;
+
+                // Begin accepting clients
+                UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
             }
             catch (Exception)
             {
@@ -155,19 +171,19 @@ namespace BS
         private void PlayReceived(String IncomingCommand, Exception e, Object PlayerStringSocket)
         {
             // If the message received is PLAY @ with @ being the name of the player then do the following
-            if(IncomingCommand.StartsWith("PLAY"))
+            if(IncomingCommand.StartsWith("PLAY "))
             {
                 // Get the name of the player from the incoming string. 
                 String PlayerName = IncomingCommand.Substring(5);
                 
                 // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
-                PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket)PlayerStringSocket);
+                PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket) PlayerStringSocket);
 
                 // If there is nobody else queued up to play, then add the player to a queue to wait
                 // for another connection.
-                if(WaitingPlayers.Count == 0)
+                if (WaitingPlayer == null)
                 {
-                    WaitingPlayers.Enqueue(NewPlayer);
+                    WaitingPlayer = NewPlayer;
                 }
 
                 // If there is somebody waiting for a game then get both players and 
@@ -175,14 +191,33 @@ namespace BS
                 else
                 {
                     // Get the waiting player's data
-                    PlayerData FirstPlayer = WaitingPlayers.Dequeue();
+                    PlayerData FirstPlayer = WaitingPlayer;
+                    
+                    // There are no more players waiting. Set WaitingPlayer = null for
+                    // future checks.
+                    WaitingPlayer = null;
                     
                     // Build a new Game object with both players.
-                    Game NewGame = new Game(FirstPlayer, SecondPlayer, 
+                    Game NewGame;
+                    if (OptionalString == null)
+                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength);
+                    else
+                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength, OptionalString);
 
-                    // Start the game
-                    Thread GameThread = new Thread(NewGame.RunGame());
+                    // Start the game on a new Thread.
+                    ThreadStart WorkLoad = new ThreadStart(NewGame.RunGame);
+                    Thread GameThread = new Thread(WorkLoad);
                 }
+            }
+
+            // If the client didn't send the PLAY command, then continue waiting for a command
+            // from the client.
+            else
+            {
+                StringSocket ss;
+                ss = (StringSocket) PlayerStringSocket;
+
+                ss.BeginReceive(PlayReceived, ss);
             }
         }
 
@@ -211,10 +246,10 @@ namespace BS
         private class Game
         {
             // Global Variables used for the Game
-            int GameTime;           // time left in the game
-            bool GameFinished;      // Indicates if time has run out. 
             PlayerData Player1;     // A PlayerData object to holds all data for Player1.
             PlayerData Player2;     // A PlayerData object to holds all data for Player2.
+            int GameTime;           // The Time left in the game
+            bool GameFinished;      // Indicates if time has run out. 
             BoggleBoard GameBoard;  // The boggle board to be played on. 
 
             /// <summary>
@@ -229,8 +264,13 @@ namespace BS
             public Game(PlayerData Player1, PlayerData Player2, int GameTime)
             {
                 // Create a BoggleBoard
+                this.GameBoard = new BoggleBoard();
 
                 // Intialize all other instance variables.
+                this.Player1 = Player1;
+                this.Player2 = Player2;
+                this.GameTime = GameTime;
+                this.GameFinished = false;
             }
 
             /// <summary>
@@ -248,8 +288,13 @@ namespace BS
             public Game(PlayerData Player1, PlayerData Player2, int GameTime, String OptionalString)
             {
                 // Create a BoggleBoard with the OptionalString as the Board's String.
+                this.GameBoard = new BoggleBoard(OptionalString);
 
-                // Initialize all other instance variables.
+                // Intialize all other instance variables.
+                this.Player1 = Player1;
+                this.Player2 = Player2;
+                this.GameTime = GameTime;
+                this.GameFinished = false;
             }
 
             /// <summary>
@@ -261,9 +306,13 @@ namespace BS
             public void RunGame()
             {
                 // Send the START command to both Players
+                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + GameTime + Player2.Name, (e, o) => {}, null);
+                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + GameTime + Player1.Name, (e, o) => {}, null);
 
-                // Start counting the time on a different thread
-
+                // Start counting the time on a different thread.
+                ThreadStart TimeCounter = new ThreadStart(CalculateTime);
+                Thread CalcTime = new Thread(TimeCounter);
+                
                 // Start receiving words from both Players. 
 
                 // When the game is finished call the EndGame method to return scores and cleanup resources.
@@ -278,7 +327,7 @@ namespace BS
             /// </summary>
             private void CalculateTime()
             {
-                //While there is still time left in the game
+                // While there is still time left in the game
 
                 // Sleep for one second
 
@@ -331,11 +380,29 @@ namespace BS
         /// </summary>
         private class PlayerData
         {
-            StringSocket PlayerSocket;  // The StringSocket associated with the PlayerName
-            String PlayerName;          // The name of the player
-            int Score;                  // The current score of the player
-            HashSet<String> words;      // All words the player has found in the current game. 
+            string PlayerName;                // The name of the player
+            StringSocket PlayerSocket;        // The StringSocket associated with the PlayerName.                
+            int Score;                        // The current score of the player.
+            HashSet<string> PlayedWords;      // All words the player has found in the current game. 
 
+            // Public Properties used to get the member variables of a given PlayerData instance:
+            public string Name { get { return this.PlayerName; } private set { this.PlayerName = value; } }
+            public StringSocket Socket { get { return this.PlayerSocket; } private set { this.PlayerSocket = value; } }
+            public int PlayerScore { get { return this.Score; } private set { this.Score = value; } }
+            public HashSet<string> WordsPlayed { get { return this.PlayedWords;} private set { this.PlayedWords = value; } }
+
+            /// <summary>
+            /// Constructor used to initialize a new PlayerData instance. A PlayerData instance contains
+            /// the name of the player, the StringSocket used for communication, the players score, and
+            /// the words that the user has played.
+            /// </summary>
+            public PlayerData(string PlayerName, StringSocket PlayerSocket)
+            {
+                this.PlayerName = PlayerName;
+                this.PlayerSocket = PlayerSocket;
+                this.Score = 0;
+                this.PlayedWords = new HashSet<string>();
+            }
         }
     }
 }
