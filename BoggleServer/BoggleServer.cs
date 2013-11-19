@@ -14,9 +14,10 @@ using System.Threading;
 namespace BS
 {
     /// <summary>
-    /// The server for out Boggle game. It is asyncronous and non-blocking. The main method inializes 
-    /// the Boggle Server and then it runs independently waiting for connection requests, processing them, and 
-    /// sending them to be handled in a different thread. 
+    /// A BoggleServer is used to connect clients to play a Boggle game. It is asyncronous and 
+    /// non-blocking. When this application is run, the Boggle Server will run independently 
+    /// waiting for connection requests, processing them, and sending them to be handled in a 
+    /// different thread. 
     /// </summary>
     public class BoggleServer
     {
@@ -99,12 +100,11 @@ namespace BS
         {
             try
             {
-                //
                 this.UnderlyingServer = new TcpListener(IPAddress.Any, 2000);
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
 
-                //Begin accepting clients
+                // Begin accepting clients
                 UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
                 
             }
@@ -143,55 +143,55 @@ namespace BS
 
         /// <summary>
         /// The callback called by the StringSocket after a new player has been initialized. 
-        /// The expected string is the commang PLAY @ where @ is the name of the Player. 
-        /// If a player is waiting to play, this method takes both the waiting player 
-        /// and the new player and creates a new Game Obect, then starts the Game on a new
-        /// thread. If there are no waiting players, the player is put on a Queue to wait for another
+        /// The expected string is the command "PLAY @" where @ is the name of the Player. 
+        /// If a player is waiting to play, this method takes both the waiting player and the 
+        /// new player and creates a new Game Obect, then starts the Game on a new thread. If 
+        /// there are no waiting players, the player is put on a Queue to wait for another
         /// join. 
         /// </summary>
-        /// <param name="PlayString"></param>
+        /// <param name="IncomingCommand"></param>
         /// <param name="e"></param>
         /// <param name="PlayerStringSocket"></param>
-        private void PlayReceived(String PlayString, Exception e, Object PlayerStringSocket)
+        private void PlayReceived(String IncomingCommand, Exception e, Object PlayerStringSocket)
         {
-            //If the message received is PLAY @ with @ being the name of the player then do the following
-            if(PlayString.StartsWith("PLAY"))
+            // If the message received is PLAY @ with @ being the name of the player then do the following
+            if(IncomingCommand.StartsWith("PLAY"))
             {
-                //Get the name of the player from the incoming string. 
-                String PlayerName = PlayString.Substring(5);
-                //Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
+                // Get the name of the player from the incoming string. 
+                String PlayerName = IncomingCommand.Substring(5);
+                
+                // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
                 PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket)PlayerStringSocket);
 
-                //If there is nobody else queued up to play, then add the player to a queue to wait
-                //for another connection.
+                // If there is nobody else queued up to play, then add the player to a queue to wait
+                // for another connection.
                 if(WaitingPlayers.Count == 0)
                 {
                     WaitingPlayers.Enqueue(NewPlayer);
                 }
 
-                //If there is somebody waiting for a game then get both players and 
-                //Build a game object with them. 
+                // If there is somebody waiting for a game then get both players and 
+                // Build a game object with them. 
                 else
                 {
-                    //Get the waiting player's data
+                    // Get the waiting player's data
                     PlayerData FirstPlayer = WaitingPlayers.Dequeue();
                     
-                    //Build a new Game object with both players.
+                    // Build a new Game object with both players.
                     Game NewGame = new Game(FirstPlayer, SecondPlayer, 
 
-                    //Start the game
+                    // Start the game
                     Thread GameThread = new Thread(NewGame.RunGame());
                 }
             }
         }
 
         /// <summary>
-        /// The callback fired by the Underlying Server when a new connection is received. 
-        /// This method creates a new socket on the Connection request, then creates a 
-        /// StringSocket over the new socket. It then calls BeginRecieve
-        /// on the new String Socket and passes it PlayReceived as the parameter.
-        /// After doing that it calls BeginAcceptSocket on the UnderlyingServer
-        /// in order to allow processing of more Connection Requests. 
+        /// The callback fired by the UnderlyingServer when a new connection is received.
+        /// This will create a new socket from the connection request and wrap the socket
+        /// in a StringSocket so that the server and client can communicate via strings.
+        /// After creating the StringSocket the server begins accepting command from the 
+        /// client and continues to accept more connections.
         /// </summary>
         private void ConnectionReceived(IAsyncResult ar)
         {
@@ -204,12 +204,13 @@ namespace BS
         }
 
         /// <summary>
-        /// This class handles the bulk of the operations related to running a Boggle game. It has methods
-        /// to start games, count down and update time, receive words, and end the game. 
+        /// The Game class handles the bulk of the operations related to running a Boggle game. 
+        /// It has methods to start games, manage game times, receive words from clients, and end 
+        /// games. 
         /// </summary>
         private class Game
         {
-            //Global Variables used for the Game
+            // Global Variables used for the Game
             int GameTime;           // time left in the game
             bool GameFinished;      // Indicates if time has run out. 
             PlayerData Player1;     // A PlayerData object to holds all data for Player1.
@@ -217,124 +218,123 @@ namespace BS
             BoggleBoard GameBoard;  // The boggle board to be played on. 
 
             /// <summary>
-            /// Initializes a Game. Creates a Boggleboard and initializes GameTime
-            /// to the given time, Player1 and Player2 to their respective global pointers,
-            /// and GameFinished to false. No game operation happens here, only the 
+            /// Initializes a Game. Creates a BoggleBoard and initializes GameTime to the 
+            /// given time, Player1 and Player2 to their respective global pointers, and 
+            /// GameFinished to false. No game operation happens here, only the 
             /// initialization of variables. 
             /// </summary>
-            /// <param name="Player1">The first Player</param>
-            /// <param name="Player2">The second Player</param>
-            /// <param name="GameTime">The length of the game in seconds</param>
+            /// <param name="Player1">The first player</param>
+            /// <param name="Player2">The second player</param>
+            /// <param name="GameTime">The length of the game (in seconds)</param>
             public Game(PlayerData Player1, PlayerData Player2, int GameTime)
             {
-                //Create a BoggleBoard
+                // Create a BoggleBoard
 
-                //Intialize all other instance variables.
+                // Intialize all other instance variables.
             }
 
             /// <summary>
-            /// Initializes a Game. Creates a Boggleboard with the OptionalString
-            /// as the letters used in the board. It also initializes GameTime
-            /// to the given time, Player1 and Player2 to their respective global pointers,
+            /// Initializes a Game. Creates a BoggleBoard with the OptionalString as 
+            /// the letters used in the board. It also initializes GameTime to the 
+            /// given time, Player1 and Player2 to their respective global pointers,
             /// and GameFinished to false. No game operation happens here, only the 
             /// initialization of variables. 
             /// </summary>
-            /// <param name="Player1">The first PlayerData</param>
-            /// <param name="Player2">The second PlayerData</param>
-            /// <param name="GameTime">The length of the game in seconds</param>
+            /// <param name="Player1">The data for the first player.</param>
+            /// <param name="Player2">The data for the second player.</param>
+            /// <param name="GameTime">The length of the game (in seconds).</param>
             /// <param name="OptionalString">The string given via the command line that 
-            /// indicates which letters should be on the game board</param>
+            /// indicates which letters should be used for the game board.</param>
             public Game(PlayerData Player1, PlayerData Player2, int GameTime, String OptionalString)
             {
-                //Create a BoggleBoard with the OptionalString as the Board's String.
+                // Create a BoggleBoard with the OptionalString as the Board's String.
 
-                //Initialize all other instance variables.
+                // Initialize all other instance variables.
             }
 
             /// <summary>
             /// Does the bulk of the game operation. Sends the START command,
-            /// Starts and monitors the counting of GameTime. Receives
+            /// starts and monitors the counting of GameTime., and receives
             /// and processes words from the Players. When GameFinished
             /// is set to true it calls the EndGame method
             /// </summary>
             public void RunGame()
             {
-                //Send the START command to both Players
+                // Send the START command to both Players
 
-                //Start counting the time on a different thread
+                // Start counting the time on a different thread
 
-                //Start receiving words from both Players. 
+                // Start receiving words from both Players. 
 
-                //When the game is finished call the EndGame method to return scores and cleanup resources.
+                // When the game is finished call the EndGame method to return scores and cleanup resources.
 
             }
 
             /// <summary>
-            /// Calculates and sends the current game time to clients. 
-            /// The time is sent out every second. When the time runs out
-            /// the GameFinished variable is set to true and then this method 
+            /// Calculates and sends the current game time to clients. The 
+            /// time is sent out every second. When the time runs out the 
+            /// GameFinished variable is set to true, then this method 
             /// returns. 
             /// </summary>
             private void CalculateTime()
             {
                 //While there is still time left in the game
 
-                //Sleep for one second
+                // Sleep for one second
 
-                //Send the TIME command with the current time.
+                // Send the TIME command with the current time.
 
-                //When time is out, set GameFinished variable to true. 
+                // When time is out, set GameFinished variable to true. 
                 
             }
 
             /// <summary>
-            /// Called by RunGame when the GameFinished variable is set
-            /// to true. It finishes calculating and returning the final score of the
-            /// game. It then builds and sends out the game summary. It then closes
-            /// the game and StringSockets. 
+            /// Called by RunGame when the this Game has finished (GameFinished = true).
+            /// This will calculate and return the final score of the game. It then builds 
+            /// and sends out the game summary. Finally, it closes the game and StringSockets. 
             /// </summary>
             private void EndGame()
             {
                 //Return the final scores by using the STOP command
 
-                //Build and send out the game summary.
+                // Build and send out the game summary.
 
-                //Clean up all resources
+                // Clean up all resources
 
             }
 
             /// <summary>
-            /// Callback for the String Sockets. It expects the command WORD followed 
+            /// Callback for the StringSockets. It expects the command WORD followed 
             /// by the word submitted by the client. If Command is null it checks the 
             /// exception. If Command does not start with 'WORD' then is replies
-            /// with IGNORING follow by Command. 
+            /// with IGNORING followed by Command. 
             /// </summary>
-            /// <param name="Command">The string send from the client</param>
+            /// <param name="Command">The string sent from the client</param>
             /// <param name="Problem">The exception that caused the send to fail</param>
             /// <param name="Payload"></param>
             private void CommandRecieved(String Command, Exception Problem, Object Payload)
             {
-                //Check for which command was sent.
+                // Check for which command was sent.
 
-                //If the command was WORD process the word.
-                    //Confirm whether or not we need to validate the word.
-                    //Add the word to the user's list of words
-                    //Calculate the score and send the score out to the user. 
+                // If the command was WORD process the word.
+                    // Confirm whether or not we need to validate the word.
+                    // Add the word to the user's list of words
+                    // Calculate the score and send the score out to the user. 
 
-                //If it was anything else, reply with IGNORING and the Command.
+                // If it was anything else, reply with IGNORING and the Command.
             }
 
         }
 
         /// <summary>
-        /// Used to hold all data related to a player.
+        /// Used to hold all data related to a single Boggle player.
         /// </summary>
         private class PlayerData
         {
-            StringSocket PlayerSocket;  //The StringSocket associated with the PlayerName
-            String PlayerName;          //The name of the player
-            int Score;                  //The current score of the player
-            HashSet<String> words;      //All words the player has found in the current game. 
+            StringSocket PlayerSocket;  // The StringSocket associated with the PlayerName
+            String PlayerName;          // The name of the player
+            int Score;                  // The current score of the player
+            HashSet<String> words;      // All words the player has found in the current game. 
 
         }
     }
