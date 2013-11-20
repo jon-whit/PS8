@@ -82,6 +82,8 @@ namespace BS
                 GameServer = new BoggleServer(GameLength, args[1], null);
             else
                 GameServer = new BoggleServer(GameLength, args[1], args[2]);
+
+            Console.Read();
         }
 
         // Member variables used to organize a BoggleServer:
@@ -108,18 +110,20 @@ namespace BS
             try
             {
                 this.UnderlyingServer = new TcpListener(IPAddress.Any, 2000);
-                UnderlyingServer.Start();
-
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
                 this.WaitingPlayer = null;
+
                 this.CommandReceived = new Object();
                 this.ConnectionReceivedLock = new Object();
 
                 if (OptionalString != null)
                     this.OptionalString = OptionalString;
-                Console.WriteLine("The server has started");
-                // Begin accepting clients
+                
+                Console.WriteLine("The Server has Started on Port 2000");
+                
+                // Start the server and begin accepting clients.
+                UnderlyingServer.Start();
                 UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
                 
             }
@@ -149,13 +153,17 @@ namespace BS
                 this.GameLength = GameLength;
                 this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
                 this.WaitingPlayer = null;
+
                 this.CommandReceived = new Object();
                 this.ConnectionReceivedLock = new Object();
 
                 if (OptionalString != null)
                     this.OptionalString = OptionalString;
 
-                // Begin accepting clients
+                Console.WriteLine("The Server has Started on Port " + PortNum);
+
+                // Start the server and begin accepting clients.
+                UnderlyingServer.Start();
                 UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
             }
             catch (Exception)
@@ -183,8 +191,9 @@ namespace BS
                 // If the message received is PLAY @ with @ being the name of the player then do the following
                 if (IncomingCommand.StartsWith("PLAY "))
                 {
-                    // Get the name of the player from the incoming string. 
-                    String PlayerName = IncomingCommand.Substring(5);
+                    // Get the name of the player from the incoming string. If a carriage return
+                    // exists from telnet etc.. then remove it.
+                    String PlayerName = IncomingCommand.Substring(5).Replace("\r", "");
 
                     // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
                     PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket)PlayerStringSocket);
@@ -194,13 +203,15 @@ namespace BS
                     if (WaitingPlayer == null)
                     {
                         WaitingPlayer = NewPlayer;
-                        Console.WriteLine("Player1 connected");
+                        Console.WriteLine(NewPlayer.Name + " Connected");
                     }
 
                     // If there is somebody waiting for a game then get both players and 
                     // Build a game object with them. 
                     else
                     {
+                        Console.WriteLine(NewPlayer.Name + " Connected");
+
                         // Get the waiting player's data
                         PlayerData FirstPlayer = WaitingPlayer;
 
@@ -216,8 +227,7 @@ namespace BS
                             NewGame = new Game(FirstPlayer, NewPlayer, GameLength, OptionalString);
 
                         // Start the game on a new Thread.
-                        ThreadStart WorkLoad = new ThreadStart(NewGame.RunGame);
-                        Thread GameThread = new Thread(WorkLoad);
+                        NewGame.RunGame();
                     }
                 }
 
@@ -228,6 +238,7 @@ namespace BS
                     StringSocket ss;
                     ss = (StringSocket)PlayerStringSocket;
 
+                    ss.BeginSend("IGNORING " + IncomingCommand, (ex, o) => { }, null); 
                     ss.BeginReceive(PlayReceived, ss);
                 }
             }
@@ -321,8 +332,8 @@ namespace BS
             public void RunGame()
             {
                 // Send the START command to both Players
-                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + GameTime + Player2.Name, (e, o) => {}, null);
-                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + GameTime + Player1.Name, (e, o) => {}, null);
+                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player2.Name + "\n", (e, o) => {}, null);
+                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player1.Name + "\n", (e, o) => {}, null);
 
                 // Start counting the time on a different thread.
                 ThreadStart TimeCounter = new ThreadStart(CalculateTime);

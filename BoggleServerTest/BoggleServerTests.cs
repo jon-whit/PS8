@@ -178,7 +178,7 @@ namespace BoggleServerTest
             private object p4;
 
             // Timeout used in test case
-            private static int timeout = 8000;
+            private static int timeout = 99000;
 
             public void run()
             {
@@ -213,7 +213,7 @@ namespace BoggleServerTest
                     ClientSS1.BeginReceive(CompletedReceive1, 1);
                     ClientSS2.BeginReceive(CompletedReceive2, 2);
 
-                    string ExpectedExpression = @"^(START) \d+ [a-zA-Z]{16} [a-zA-Z1-9]+";
+                    string ExpectedExpression = @"^(START) [a-zA-Z]{16} \d+ [a-zA-Z1-9]+";
                     Assert.AreEqual(true, mre1.WaitOne(timeout), "Timed out waiting 1");
                     Assert.IsTrue(Regex.IsMatch(s1, ExpectedExpression));
                     Assert.AreEqual(true, mre2.WaitOne(timeout), "Timed out waiting 2");
