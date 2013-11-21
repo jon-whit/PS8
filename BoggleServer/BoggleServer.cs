@@ -9,7 +9,7 @@ using System.Net.Sockets;
 using CustomNetworking;
 using BB;
 using System.Threading;
-
+using System.Diagnostics;
 
 namespace BS
 {
@@ -60,8 +60,7 @@ namespace BS
             // message and terminate.
             if (!File.Exists(args[1]))
             {
-                Console.WriteLine("Error: Invalid arguments.");
-                Console.WriteLine("usage: BoggleServer time dictionary_path optional_string");
+                Console.WriteLine("Error: You must provide a valid file path!");
                 return;
             }
 
@@ -82,6 +81,7 @@ namespace BS
                 GameServer = new BoggleServer(GameLength, args[1], null);
             else
                 GameServer = new BoggleServer(GameLength, args[1], args[2]);
+
 
             Console.Read();
         }
@@ -205,63 +205,61 @@ namespace BS
         /// connects.
         /// </summary>
         private void PlayReceived(String IncomingCommand, Exception e, Object PlayerStringSocket)
-        {
-            lock (CommandReceived)
+        {   
+            // If the message received is PLAY @ with @ being the name of the player then do the following
+            if (IncomingCommand.StartsWith("PLAY "))
             {
-                // If the message received is PLAY @ with @ being the name of the player then do the following
-                if (IncomingCommand.StartsWith("PLAY "))
+                // Get the name of the player from the incoming string. If a carriage return
+                // exists from telnet etc.. then remove it.
+                String PlayerName = IncomingCommand.Substring(5).Replace("\r", "");
+
+                // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
+                PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket) PlayerStringSocket);
+
+                // If there is nobody else waiting to play, then store the player and
+                // wait for another to join.
+                if (WaitingPlayer == null)
                 {
-                    // Get the name of the player from the incoming string. If a carriage return
-                    // exists from telnet etc.. then remove it.
-                    String PlayerName = IncomingCommand.Substring(5).Replace("\r", "");
-
-                    // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
-                    PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket) PlayerStringSocket);
-
-                    // If there is nobody else waiting to play, then store the player and
-                    // wait for another to join.
-                    if (WaitingPlayer == null)
-                    {
-                        WaitingPlayer = NewPlayer;
-                        Console.WriteLine(NewPlayer.Name + " Connected");
-                    }
-
-                    // If there is somebody waiting for a game, then get both players and 
-                    // build a game object with them. 
-                    else
-                    {
-                        Console.WriteLine(NewPlayer.Name + " Connected");
-
-                        // Get the waiting player's data
-                        PlayerData FirstPlayer = WaitingPlayer;
-
-                        // There are no more players waiting. Set WaitingPlayer = null for
-                        // future checks.
-                        WaitingPlayer = null;
-
-                        // Build a new Game object with both players.
-                        Game NewGame;
-                        if (OptionalString == null)
-                            NewGame = new Game(FirstPlayer, NewPlayer, GameLength);
-                        else
-                            NewGame = new Game(FirstPlayer, NewPlayer, GameLength, OptionalString);
-
-                        // Start the game between the two clients.
-                        NewGame.RunGame();
-                    }
+                    WaitingPlayer = NewPlayer;
+                    Console.WriteLine(NewPlayer.Name + " Connected");
                 }
 
-                // If the client didn't send the PLAY command, then print an IGNORING message
-                // and continue waiting for the correct command.
+                // If there is somebody waiting for a game, then get both players and 
+                // build a game object with them. 
                 else
                 {
-                    StringSocket ss;
-                    ss = (StringSocket) PlayerStringSocket;
+                    Console.WriteLine(NewPlayer.Name + " Connected");
 
-                    ss.BeginSend("IGNORING " + IncomingCommand, (ex, o) => { }, null); 
-                    ss.BeginReceive(PlayReceived, ss);
+                    // Get the waiting player's data
+                    PlayerData FirstPlayer = WaitingPlayer;
+
+                    // There are no more players waiting. Set WaitingPlayer = null for
+                    // future checks.
+                    WaitingPlayer = null;
+
+                    // Build a new Game object with both players.
+                    Game NewGame;
+                    if (OptionalString == null)
+                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords);
+                    else
+                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords, OptionalString);
+
+                    // Start the game between the two clients.
+                    NewGame.RunGame();
                 }
             }
+
+            // If the client didn't send the PLAY command, then print an IGNORING message
+            // and continue waiting for the correct command.
+            else
+            {
+                StringSocket ss;
+                ss = (StringSocket) PlayerStringSocket;
+
+                ss.BeginSend("IGNORING " + IncomingCommand, (ex, o) => { }, null); 
+                ss.BeginReceive(PlayReceived, ss);
+            }
+        
         }
 
         /// <summary>
@@ -272,12 +270,13 @@ namespace BS
         private class Game
         {
             // Global Variables used for the Game:
-            PlayerData Player1;     // A PlayerData object to holds all data for Player1.
-            PlayerData Player2;     // A PlayerData object to holds all data for Player2.
-            int GameTime;           // The Time left in the game
-            bool GameFinished;      // Indicates if time has run out. 
-            BoggleBoard GameBoard;  // The boggle board to be played on. 
-
+            private PlayerData Player1;     // A PlayerData object to holds all data for Player1.
+            private PlayerData Player2;     // A PlayerData object to holds all data for Player2.
+            private int GameTime;           // The Time left in the game
+            private bool GameFinished;      // Indicates if time has run out. 
+            private BoggleBoard GameBoard;  // The boggle board to be played on. 
+            private HashSet<string> DictionaryWords;
+            
             /// <summary>
             /// Initializes a Game. Creates a BoggleBoard and initializes GameTime to the 
             /// given time, Player1 and Player2 to their respective global pointers, and 
@@ -287,7 +286,7 @@ namespace BS
             /// <param name="Player1">The first player</param>
             /// <param name="Player2">The second player</param>
             /// <param name="GameTime">The length of the game (in seconds)</param>
-            public Game(PlayerData Player1, PlayerData Player2, int GameTime)
+            public Game(PlayerData Player1, PlayerData Player2, int GameTime, HashSet<string> DictionaryWords)
             {
                 // Create a BoggleBoard
                 this.GameBoard = new BoggleBoard();
@@ -296,6 +295,7 @@ namespace BS
                 this.Player1 = Player1;
                 this.Player2 = Player2;
                 this.GameTime = GameTime;
+                this.DictionaryWords = DictionaryWords;
                 this.GameFinished = false;
             }
 
@@ -311,7 +311,7 @@ namespace BS
             /// <param name="GameTime">The length of the game (in seconds).</param>
             /// <param name="OptionalString">The string given via the command line that 
             /// indicates which letters should be used for the game board.</param>
-            public Game(PlayerData Player1, PlayerData Player2, int GameTime, String OptionalString)
+            public Game(PlayerData Player1, PlayerData Player2, int GameTime, HashSet<string> DictionaryWords, String OptionalString)
             {
                 // Create a BoggleBoard with the OptionalString as the Board's String.
                 this.GameBoard = new BoggleBoard(OptionalString);
@@ -320,6 +320,7 @@ namespace BS
                 this.Player1 = Player1;
                 this.Player2 = Player2;
                 this.GameTime = GameTime;
+                this.DictionaryWords = DictionaryWords;
                 this.GameFinished = false;
             }
 
@@ -332,17 +333,24 @@ namespace BS
             public void RunGame()
             {
                 // Send the START command to both Players
-                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player2.Name + "\n", (e, o) => {}, null);
-                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player1.Name + "\n", (e, o) => {}, null);
+                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player2.Name + "\r\n", (e, o) => { }, null);
+                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player1.Name + "\r\n", (e, o) => { }, null);
 
                 // Start counting the time on a different thread.
                 ThreadStart TimeCounter = new ThreadStart(CalculateTime);
                 Thread CalcTime = new Thread(TimeCounter);
-                
+                CalcTime.Start();
+
                 // Start receiving words from both Players. 
+                Player1.Socket.BeginReceive(CommandRecieved, Player1);
+                Player2.Socket.BeginReceive(CommandRecieved, Player2);
 
-                // When the game is finished call the EndGame method to return scores and cleanup resources.
+                // Wait for the Thread calculating the time to finish.
+                CalcTime.Join();
 
+                // When the game is finished call the EndGame method to return scores 
+                // and cleanup resources.
+                EndGame();
             }
 
             /// <summary>
@@ -354,13 +362,23 @@ namespace BS
             private void CalculateTime()
             {
                 // While there is still time left in the game
+                for (; GameTime > 0; GameTime--)
+                {
+                    // Send the TIME command with the current time to the clients.
+                    //Player1.Socket.BeginSend("TIME " + GameTime + "\r\n", TimeCallback, Player1);
+                    //Player2.Socket.BeginSend("TIME " + GameTime + "\r\n", TimeCallback, Player2);
 
-                // Sleep for one second
-
-                // Send the TIME command with the current time.
+                    // Sleep for one second
+                    Thread.Sleep(1000);
+                }
 
                 // When time is out, set GameFinished variable to true. 
-                
+                GameFinished = true;
+            }
+
+            private void TimeCallback(Exception e, object Payload)
+            {
+
             }
 
             /// <summary>
@@ -390,16 +408,163 @@ namespace BS
             private void CommandRecieved(String Command, Exception Problem, Object Payload)
             {
                 // Check for which command was sent.
+                if (Command.StartsWith("WORD "))
+                {
+                    // Get the word that was played.
+                    String WordPlayed = Command.Substring(5);
 
+
+                    // Add the word to the user's list of words and calculate
+                    // the score. Return the results to the user if any changes
+                    // occured to the score.
+                    CalculateScore(WordPlayed, (PlayerData) Payload);
+                }
                 // If the command was WORD process the word.
-                    // Confirm whether or not we need to validate the word.
-                    // Add the word to the user's list of words
-                    // Calculate the score and send the score out to the user.
+                // Confirm whether or not we need to validate the word.
+                // Add the word to the user's list of words
+                // Calculate the score and send the score out to the user.
 
                 // If it was anything else, reply with IGNORING and the Command.
             }
 
+            /// <summary>
+            /// Calculates the scores of the current scores for the two users involved
+            /// in the current Boggle game.
+            /// </summary>
+            /// <param name="WordPlayed">The word played by the user.</param>
+            /// <param name="Player">The player that played the word.</param>
+            private void CalculateScore(string WordPlayed, PlayerData Player)
+            {
+                // Each word with fewer than three characters is removed (whether or not it is legal).For 
+                // any word that appears more than once, ignore the additional appearance of the word.
+                if (WordPlayed.Length > 2 && IsLegal(WordPlayed))
+                {
+                    if (!Player.WordsPlayed.Contains(WordPlayed))
+                    {
+                        // Calculate the weight of the word that was played by the
+                        // user.
+                        int WordWeight = 0;
+                        switch (WordPlayed.Length)
+                        {
+                            case 3:
+                                WordWeight = 1;
+                                break;
+                            case 4:
+                                WordWeight = 1;
+                                break;
+                            case 5:
+                                WordWeight = 2;
+                                break;
+                            case 6:
+                                WordWeight = 3;
+                                break;
+                            case 7:
+                                WordWeight = 5;
+                                break;
+                            default:
+                                WordWeight = 11;
+                                break;
+                        }
+
+                        if (Player == Player1)
+                        {
+                            // If player played a word that his opponent has already played,
+                            // then decrement the opponents score based on the weight and add
+                            // the word as a duplicate.
+                            if (Player2.WordsPlayed.Contains(WordPlayed))
+                            {
+                                Player2.LegalWords.Remove(WordPlayed);
+                                Player2.PlayerScore -= WordWeight;
+
+                                SendScore();
+
+                                Player1.DuplicateWords.Add(WordPlayed);
+                                Player2.DuplicateWords.Add(WordPlayed);
+                            }
+
+                            // If the player played a word that his opponent has not already played
+                            // then increment his score based on the weight and add he word to the
+                            // list of legal words.
+                            else
+                            {
+                                Player1.LegalWords.Add(WordPlayed);
+                                Player1.PlayerScore += WordWeight;
+
+                                SendScore();
+                            }
+                        }
+                        else
+                        {
+                            // If player played a word that his opponent has already played,
+                            // then decrement the opponents score based on the weight and add
+                            // the word as a duplicate.
+                            if (Player1.WordsPlayed.Contains(WordPlayed))
+                            {
+                                Player1.LegalWords.Remove(WordPlayed);
+                                Player1.PlayerScore -= WordWeight;
+
+                                SendScore();
+
+                                Player1.DuplicateWords.Add(WordPlayed);
+                                Player2.DuplicateWords.Add(WordPlayed);
+                            }
+
+                            // If the player played a word that his opponent has not already played
+                            // then increment his score based on the weight and add he word to the
+                            // list of legal words.
+                            else
+                            {
+                                Player2.LegalWords.Add(WordPlayed);
+                                Player2.PlayerScore += WordWeight;
+
+                                SendScore();
+                            }
+                        }
+                    }
+
+                    Player.WordsPlayed.Add(WordPlayed);
+                }
+
+                // Otherwise if the word contains more than 2 characters and is illegal,
+                // then do the following:
+                else if (WordPlayed.Length > 2 && !IsLegal(WordPlayed))
+                {
+                    if (!Player.WordsPlayed.Contains(WordPlayed))
+                    {
+                        Player.IllegalWords.Add(WordPlayed);
+                        Player.PlayerScore--;
+
+                        SendScore();
+                    }
+
+                    Player.WordsPlayed.Add(WordPlayed);
+                }
+            }
+
+            /// <summary>
+            /// Determines whether a word that that was played is legal. A word
+            /// is legal if it can be formed and if it is contained with the
+            /// dictionary.
+            /// </summary>
+            private bool IsLegal(string WordPlayed)
+            {
+                if (DictionaryWords.Contains(WordPlayed) && GameBoard.CanBeFormed(WordPlayed))
+                    return true;
+                else
+                    return false;
+            }
+
+            /// <summary>
+            /// Used to send the current score to the two players in this Boggle game.
+            /// </summary>
+            private void SendScore()
+            {
+                Player1.Socket.BeginSend("SCORE " + Player1.PlayerScore + " " + Player2.PlayerScore + "\n", (e, o) => { }, null);
+                Player2.Socket.BeginSend("SCORE " + Player2.PlayerScore + " " + Player1.PlayerScore + "\n", (e, o) => { }, null);
+            }
         }
+
+
 
         /// <summary>
         /// Used to hold all data related to a single Boggle player.
@@ -409,13 +574,20 @@ namespace BS
             string PlayerName;                // The name of the player
             StringSocket PlayerSocket;        // The StringSocket associated with the PlayerName.                
             int Score;                        // The current score of the player.
-            HashSet<string> PlayedWords;      // All words the player has found in the current game. 
+            HashSet<string> Played_Words;      // All words the player has found in the current game. 
+            HashSet<string> Legal_Words;
+            HashSet<string> Illegal_Words;
+            HashSet<string> Duplicate_Words;
+
 
             // Public Properties used to get the member variables of a given PlayerData instance:
-            public string Name { get { return this.PlayerName; } private set { this.PlayerName = value; } }
-            public StringSocket Socket { get { return this.PlayerSocket; } private set { this.PlayerSocket = value; } }
-            public int PlayerScore { get { return this.Score; } private set { this.Score = value; } }
-            public HashSet<string> WordsPlayed { get { return this.PlayedWords;} private set { this.PlayedWords = value; } }
+            public string Name { get { return this.PlayerName; } set { this.PlayerName = value; } }
+            public StringSocket Socket { get { return this.PlayerSocket; } set { this.PlayerSocket = value; } }
+            public int PlayerScore { get { return this.Score; } set { this.Score = value; } }
+            public HashSet<string> WordsPlayed { get { return this.Played_Words;} set { this.Played_Words = value; } }
+            public HashSet<string> LegalWords { get { return this.Legal_Words; } set { this.Legal_Words = value; } }
+            public HashSet<string> IllegalWords { get { return this.Illegal_Words; } set { this.Illegal_Words = value; } }
+            public HashSet<string> DuplicateWords { get { return this.Duplicate_Words; } set { this.Duplicate_Words = value; } }
 
             /// <summary>
             /// Constructor used to initialize a new PlayerData instance. A PlayerData instance contains
@@ -427,7 +599,10 @@ namespace BS
                 this.PlayerName = PlayerName;
                 this.PlayerSocket = PlayerSocket;
                 this.Score = 0;
-                this.PlayedWords = new HashSet<string>();
+                this.Played_Words = new HashSet<string>();
+                this.Legal_Words = new HashSet<string>();
+                this.Illegal_Words = new HashSet<string>();
+                this.Duplicate_Words = new HashSet<string>();
             }
         }
     }
