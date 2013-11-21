@@ -407,6 +407,8 @@ namespace BS
             /// <param name="Payload"></param>
             private void CommandRecieved(String Command, Exception Problem, Object Payload)
             {
+                PlayerData Player = (PlayerData)Payload;
+
                 // Check for which command was sent.
                 if (Command.StartsWith("WORD "))
                 {
@@ -417,14 +419,14 @@ namespace BS
                     // Add the word to the user's list of words and calculate
                     // the score. Return the results to the user if any changes
                     // occured to the score.
-                    CalculateScore(WordPlayed, (PlayerData) Payload);
+                    CalculateScore(WordPlayed, Player);
                 }
-                // If the command was WORD process the word.
-                // Confirm whether or not we need to validate the word.
-                // Add the word to the user's list of words
-                // Calculate the score and send the score out to the user.
 
-                // If it was anything else, reply with IGNORING and the Command.
+                // If the Command was anything else, reply with IGNORING and the Command.
+                else
+                {
+                    Player.Socket.BeginSend("IGNORING " + Command, (ex, o) => { }, null);
+                }
             }
 
             /// <summary>
