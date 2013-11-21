@@ -172,18 +172,38 @@ namespace BS
             }
         }
 
+        /// <summary>
+        /// The callback fired by the UnderlyingServer when a new connection is received.
+        /// This will create a new socket from the connection request and wrap the socket
+        /// in a StringSocket so that the server and client can communicate via strings.
+        /// After creating the StringSocket the server begins accepting command from the 
+        /// client and continues to accept more connections.
+        /// </summary>
+        private void ConnectionReceived(IAsyncResult ar)
+        {
+            lock (ConnectionReceivedLock)
+            {
+                Socket socket = UnderlyingServer.EndAcceptSocket(ar);
+                StringSocket ss = new StringSocket(socket, UTF8Encoding.Default);
+
+                // Begin receiving commands from the client. The first command
+                // should always be PLAY @, where @ is the name of the player.
+                ss.BeginReceive(PlayReceived, ss);
+
+                // Wait for more clients to connect.
+                UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
+            }
+        }
+
 
         /// <summary>
         /// The callback called by the StringSocket after a new player has been initialized. 
         /// The expected string is the command "PLAY @" where @ is the name of the Player. 
         /// If a player is waiting to play, this method takes both the waiting player and the 
         /// new player and creates a new Game Obect, then starts the Game on a new thread. If 
-        /// there are no waiting players, the player is put on a Queue to wait for another
-        /// join. 
+        /// there are no waiting players, then the waiting player is stored until a new client
+        /// connects.
         /// </summary>
-        /// <param name="IncomingCommand"></param>
-        /// <param name="e"></param>
-        /// <param name="PlayerStringSocket"></param>
         private void PlayReceived(String IncomingCommand, Exception e, Object PlayerStringSocket)
         {
             lock (CommandReceived)
@@ -196,18 +216,18 @@ namespace BS
                     String PlayerName = IncomingCommand.Substring(5).Replace("\r", "");
 
                     // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
-                    PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket)PlayerStringSocket);
+                    PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket) PlayerStringSocket);
 
-                    // If there is nobody else queued up to play, then add the player to a queue to wait
-                    // for another connection.
+                    // If there is nobody else waiting to play, then store the player and
+                    // wait for another to join.
                     if (WaitingPlayer == null)
                     {
                         WaitingPlayer = NewPlayer;
                         Console.WriteLine(NewPlayer.Name + " Connected");
                     }
 
-                    // If there is somebody waiting for a game then get both players and 
-                    // Build a game object with them. 
+                    // If there is somebody waiting for a game, then get both players and 
+                    // build a game object with them. 
                     else
                     {
                         Console.WriteLine(NewPlayer.Name + " Connected");
@@ -226,41 +246,21 @@ namespace BS
                         else
                             NewGame = new Game(FirstPlayer, NewPlayer, GameLength, OptionalString);
 
-                        // Start the game on a new Thread.
+                        // Start the game between the two clients.
                         NewGame.RunGame();
                     }
                 }
 
-                // If the client didn't send the PLAY command, then continue waiting for a command
-                // from the client.
+                // If the client didn't send the PLAY command, then print an IGNORING message
+                // and continue waiting for the correct command.
                 else
                 {
                     StringSocket ss;
-                    ss = (StringSocket)PlayerStringSocket;
+                    ss = (StringSocket) PlayerStringSocket;
 
                     ss.BeginSend("IGNORING " + IncomingCommand, (ex, o) => { }, null); 
                     ss.BeginReceive(PlayReceived, ss);
                 }
-            }
-        }
-
-        /// <summary>
-        /// The callback fired by the UnderlyingServer when a new connection is received.
-        /// This will create a new socket from the connection request and wrap the socket
-        /// in a StringSocket so that the server and client can communicate via strings.
-        /// After creating the StringSocket the server begins accepting command from the 
-        /// client and continues to accept more connections.
-        /// </summary>
-        private void ConnectionReceived(IAsyncResult ar)
-        {
-            lock (ConnectionReceivedLock)
-            {
-                Socket socket = UnderlyingServer.EndAcceptSocket(ar);
-                StringSocket ss = new StringSocket(socket, UTF8Encoding.Default);
-
-                ss.BeginReceive(PlayReceived, ss);
-
-                UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
             }
         }
 
@@ -271,7 +271,7 @@ namespace BS
         /// </summary>
         private class Game
         {
-            // Global Variables used for the Game
+            // Global Variables used for the Game:
             PlayerData Player1;     // A PlayerData object to holds all data for Player1.
             PlayerData Player2;     // A PlayerData object to holds all data for Player2.
             int GameTime;           // The Time left in the game
@@ -370,7 +370,7 @@ namespace BS
             /// </summary>
             private void EndGame()
             {
-                //Return the final scores by using the STOP command
+                // Return the final scores by using the STOP command
 
                 // Build and send out the game summary.
 
@@ -394,7 +394,7 @@ namespace BS
                 // If the command was WORD process the word.
                     // Confirm whether or not we need to validate the word.
                     // Add the word to the user's list of words
-                    // Calculate the score and send the score out to the user. 
+                    // Calculate the score and send the score out to the user.
 
                 // If it was anything else, reply with IGNORING and the Command.
             }
