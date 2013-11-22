@@ -205,13 +205,14 @@ namespace BS
         /// connects.
         /// </summary>
         private void PlayReceived(String IncomingCommand, Exception e, Object PlayerStringSocket)
-        {   
+        {
+            IncomingCommand = IncomingCommand.Trim();
             // If the message received is PLAY @ with @ being the name of the player then do the following
             if (IncomingCommand.StartsWith("PLAY "))
             {
                 // Get the name of the player from the incoming string. If a carriage return
                 // exists from telnet etc.. then remove it.
-                String PlayerName = IncomingCommand.Substring(5).Replace("\r", "");
+                String PlayerName = IncomingCommand.Substring(5);
 
                 // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
                 PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket) PlayerStringSocket);
@@ -388,6 +389,8 @@ namespace BS
             /// </summary>
             private void EndGame()
             {
+                Player1.Socket.BeginSend("GAME OVER", (e, o) => { }, null);
+                Player2.Socket.BeginSend("GAME OVER", (e, o) => { }, null);
                 // Return the final scores by using the STOP command
 
                 // Build and send out the game summary.
@@ -409,11 +412,33 @@ namespace BS
             {
                 PlayerData Player = (PlayerData)Payload;
 
+                // If the game is finished, ignore any other incoming Commands. 
+                if (GameFinished == true)
+                    return;
+                // If Command is null, then the client disconnected
+                if (Object.ReferenceEquals(null, Command))
+                {
+                    Console.WriteLine(Player.Name + " Disconnected");
+                    if (Player == Player1)
+                    {
+                        Player2.Socket.BeginSend("TERMINATED", (e, o) => { }, Player);
+                        Player2.Socket.Close();
+                        return;
+                    }
+                    else
+                    {
+                        Player1.Socket.BeginSend("TERMINATED", (e, o) => { }, Player);
+                        Player1.Socket.Close();
+                        return;
+                    }
+                    
+                }
+                
                 // Check for which command was sent.
-                if (Command.StartsWith("WORD "))
+                else if (Command.Trim().StartsWith("WORD "))
                 {
                     // Get the word that was played.
-                    String WordPlayed = Command.Substring(5);
+                    String WordPlayed = Command.Trim().Substring(5);
 
 
                     // Add the word to the user's list of words and calculate
@@ -427,6 +452,9 @@ namespace BS
                 {
                     Player.Socket.BeginSend("IGNORING " + Command, (ex, o) => { }, null);
                 }
+
+                // Begin receiving more commands from the player.
+                Player.Socket.BeginReceive(CommandRecieved, Player);
             }
 
             /// <summary>
@@ -437,6 +465,7 @@ namespace BS
             /// <param name="Player">The player that played the word.</param>
             private void CalculateScore(string WordPlayed, PlayerData Player)
             {
+
                 // Each word with fewer than three characters is removed (whether or not it is legal).For 
                 // any word that appears more than once, ignore the additional appearance of the word.
                 if (WordPlayed.Length > 2 && IsLegal(WordPlayed))
