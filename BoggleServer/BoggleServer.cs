@@ -206,13 +206,12 @@ namespace BS
         /// </summary>
         private void PlayReceived(String IncomingCommand, Exception e, Object PlayerStringSocket)
         {
-            IncomingCommand = IncomingCommand.Trim();
             // If the message received is PLAY @ with @ being the name of the player then do the following
-            if (IncomingCommand.StartsWith("PLAY "))
+            if (IncomingCommand.Trim().StartsWith("PLAY "))
             {
                 // Get the name of the player from the incoming string. If a carriage return
                 // exists from telnet etc.. then remove it.
-                String PlayerName = IncomingCommand.Substring(5);
+                String PlayerName = IncomingCommand.Trim().Substring(5);
 
                 // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
                 PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket) PlayerStringSocket);
@@ -260,7 +259,6 @@ namespace BS
                 ss.BeginSend("IGNORING " + IncomingCommand, (ex, o) => { }, null); 
                 ss.BeginReceive(PlayReceived, ss);
             }
-        
         }
 
         /// <summary>
@@ -415,8 +413,10 @@ namespace BS
                 // If the game is finished, ignore any other incoming Commands. 
                 if (GameFinished == true)
                     return;
-                // If Command is null, then the client disconnected
-                if (Object.ReferenceEquals(null, Command))
+                
+                // If Command is null then the client disconnected. Close the opponents 
+                // client and print a message indicating the termination of the game.
+                if (object.ReferenceEquals(null, Command))
                 {
                     Console.WriteLine(Player.Name + " Disconnected");
                     if (Player == Player1)
@@ -431,15 +431,13 @@ namespace BS
                         Player1.Socket.Close();
                         return;
                     }
-                    
                 }
                 
-                // Check for which command was sent.
+                // If the user sent the WORD command, then do the following:
                 else if (Command.Trim().StartsWith("WORD "))
                 {
                     // Get the word that was played.
                     String WordPlayed = Command.Trim().Substring(5);
-
 
                     // Add the word to the user's list of words and calculate
                     // the score. Return the results to the user if any changes

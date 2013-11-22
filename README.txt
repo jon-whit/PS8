@@ -6,3 +6,4 @@ Jonathan Whitaker U0752100 & Daniel Houston U0671205
 a player connected and then disconnected before another player conected. **
 
 ** TODO: Delete all carriage returns from Send method strings **
+** TODO: Uncomment the BeginSend command on the time          **
