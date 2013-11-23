@@ -21,10 +21,10 @@ namespace BS
     /// </summary>
     public class BoggleServer
     {
+        #region Main Method Used to Drive the BoggleServer
         /// <summary>
-        /// Main method called upon when the user runs this program. Here we 
-        /// will initialize a new BoggleServer with the command line args
-        /// and run the server.
+        /// Main method called upon when the user runs this program. Here we will initialize a 
+        /// new BoggleServer with the command line args and run the server.
         /// </summary>
         public static void Main(string[] args)
         {
@@ -42,7 +42,7 @@ namespace BS
 
             // Parse the arguments and ensure that they are valid. If they are not, then
             // print a descriptive error message and terminate the program.
-            
+
             // If the first argument wasn't an integer, then print an error message
             // and terminate.
             int GameLength = 0;
@@ -85,6 +85,7 @@ namespace BS
 
             Console.Read();
         }
+        #endregion
 
         // Member variables used to organize a BoggleServer:
         private TcpListener UnderlyingServer;
@@ -119,52 +120,13 @@ namespace BS
 
                 if (OptionalString != null)
                     this.OptionalString = OptionalString;
-                
+
                 Console.WriteLine("The Server has Started on Port 2000");
-                
-                // Start the server and begin accepting clients.
-                UnderlyingServer.Start();
-                UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
-                
-            }
-            catch (Exception)
-            {
-
-            }
-        }
-
-        /// <summary>
-        /// Additional constructor used to initalize a BoggleServer on the specified port number. 
-        /// This will initialize the GameLength and it will build a dictionary of all of the valid 
-        /// words from the DictionaryPath. If an optional string was passed to this application, 
-        /// then it will build a BoggleBoard from the supplied string. Otherwise it will build a 
-        /// BoggleBoard randomly.
-        /// </summary>
-        /// <param name="PortNum">The port that the BoggleServer should run on.</param>
-        /// <param name="GameLength">The length that the Boggle game should take.</param>
-        /// <param name="DictionaryPath">The filepath to the dictionary that should be used to
-        /// compare words against.</param>
-        /// <param name="OptionalString">An optional string to construct a BoggleBoard with.</param>
-        public BoggleServer(int PortNum, int GameLength, string DictionaryPath, string OptionalString)
-        {
-            try
-            {
-                this.UnderlyingServer = new TcpListener(IPAddress.Any, PortNum);
-                this.GameLength = GameLength;
-                this.DictionaryWords = new HashSet<string>(File.ReadAllLines(DictionaryPath));
-                this.WaitingPlayer = null;
-
-                this.CommandReceived = new Object();
-                this.ConnectionReceivedLock = new Object();
-
-                if (OptionalString != null)
-                    this.OptionalString = OptionalString;
-
-                Console.WriteLine("The Server has Started on Port " + PortNum);
 
                 // Start the server and begin accepting clients.
                 UnderlyingServer.Start();
                 UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
+
             }
             catch (Exception)
             {
@@ -186,15 +148,15 @@ namespace BS
                 Socket socket = UnderlyingServer.EndAcceptSocket(ar);
                 StringSocket ss = new StringSocket(socket, UTF8Encoding.Default);
 
-                // Begin receiving commands from the client. The first command
-                // should always be PLAY @, where @ is the name of the player.
-                ss.BeginReceive(PlayReceived, ss);
+                // Begin receiving commands from the client. The first command should 
+                // always be PLAY @, where @ is the name of the player. If it is not, 
+                // then handle the command appropriately.
+                ss.BeginReceive(ServerCommandReceived, ss);
 
                 // Wait for more clients to connect.
                 UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
             }
         }
-
 
         /// <summary>
         /// The callback called by the StringSocket after a new player has been initialized. 
@@ -204,17 +166,28 @@ namespace BS
         /// there are no waiting players, then the waiting player is stored until a new client
         /// connects.
         /// </summary>
-        private void PlayReceived(String IncomingCommand, Exception e, Object PlayerStringSocket)
+        private void ServerCommandReceived(String Command, Exception e, Object PlayerStringSocket)
         {
-            // If the message received is PLAY @ with @ being the name of the player then do the following
-            if (IncomingCommand.Trim().StartsWith("PLAY "))
+            StringSocket PlayersSocket = (StringSocket)PlayerStringSocket;
+
+            // If Command is null then the client disconnected. Close the socket
+            // and return from this method call.
+            if (object.ReferenceEquals(null, Command))
+            {
+                PlayersSocket.Close();
+                return;
+            }
+            // If the message received is PLAY @ with @ being the name of the player, then do 
+            // the following:
+            else if ((Command = Command.Trim()).StartsWith("PLAY "))
             {
                 // Get the name of the player from the incoming string. If a carriage return
-                // exists from telnet etc.. then remove it.
-                String PlayerName = IncomingCommand.Trim().Substring(5);
+                // exists from telnet etc.. then it will be removed because we have trimmed
+                // the command by this point.
+                String PlayerName = Command.Substring(5);
 
-                // Create a new PlayerData object with O as the StringSocket, and the Name of the Player as the Name.
-                PlayerData NewPlayer = new PlayerData(PlayerName, (StringSocket) PlayerStringSocket);
+                // Create a new PlayerData object with the PlayerName and the PlayersSocket.
+                PlayerData NewPlayer = new PlayerData(PlayerName, PlayersSocket);
 
                 // If there is nobody else waiting to play, then store the player and
                 // wait for another to join.
@@ -244,8 +217,11 @@ namespace BS
                     else
                         NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords, OptionalString);
 
-                    // Start the game between the two clients.
-                    NewGame.RunGame();
+                    // Start the game between the two clients on a new Thread. This will
+                    // reduce the workload that the server has to worry about.
+                    ThreadStart Workload = new ThreadStart(NewGame.RunGame);
+                    Thread RunGame = new Thread(Workload);
+                    RunGame.Start();
                 }
             }
 
@@ -254,13 +230,14 @@ namespace BS
             else
             {
                 StringSocket ss;
-                ss = (StringSocket) PlayerStringSocket;
+                ss = (StringSocket)PlayerStringSocket;
 
-                ss.BeginSend("IGNORING " + IncomingCommand, (ex, o) => { }, null); 
-                ss.BeginReceive(PlayReceived, ss);
+                ss.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
+                ss.BeginReceive(ServerCommandReceived, ss);
             }
         }
 
+        #region Private Nested Game Class
         /// <summary>
         /// The Game class handles the bulk of the operations related to running a Boggle game. 
         /// It has methods to start games, manage game times, receive words from clients, and end 
@@ -275,7 +252,7 @@ namespace BS
             private bool GameFinished;      // Indicates if time has run out. 
             private BoggleBoard GameBoard;  // The boggle board to be played on. 
             private HashSet<string> DictionaryWords;
-            
+
             /// <summary>
             /// Initializes a Game. Creates a BoggleBoard and initializes GameTime to the 
             /// given time, Player1 and Player2 to their respective global pointers, and 
@@ -332,8 +309,8 @@ namespace BS
             public void RunGame()
             {
                 // Send the START command to both Players
-                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player2.Name + "\r\n", (e, o) => { }, null);
-                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player1.Name + "\r\n", (e, o) => { }, null);
+                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player2.Name + "\n", (e, o) => { }, null);
+                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player1.Name + "\n", (e, o) => { }, null);
 
                 // Start counting the time on a different thread.
                 ThreadStart TimeCounter = new ThreadStart(CalculateTime);
@@ -364,8 +341,8 @@ namespace BS
                 for (; GameTime > 0; GameTime--)
                 {
                     // Send the TIME command with the current time to the clients.
-                    //Player1.Socket.BeginSend("TIME " + GameTime + "\r\n", TimeCallback, Player1);
-                    //Player2.Socket.BeginSend("TIME " + GameTime + "\r\n", TimeCallback, Player2);
+                    //Player1.Socket.BeginSend("TIME " + GameTime + "\n", TimeCallback, Player1);
+                    //Player2.Socket.BeginSend("TIME " + GameTime + "\n", TimeCallback, Player2);
 
                     // Sleep for one second
                     Thread.Sleep(1000);
@@ -381,20 +358,22 @@ namespace BS
             }
 
             /// <summary>
-            /// Called by RunGame when the this Game has finished (GameFinished = true).
-            /// This will calculate and return the final score of the game. It then builds 
-            /// and sends out the game summary. Finally, it closes the game and StringSockets. 
+            /// Called by RunGame when the this Game has finished.This will calculate and return 
+            /// the final score of the game. It then builds and sends out the game summary. Finally, 
+            /// it cleans up any resources used for the current Game.
             /// </summary>
             private void EndGame()
             {
-                Player1.Socket.BeginSend("GAME OVER", (e, o) => { }, null);
-                Player2.Socket.BeginSend("GAME OVER", (e, o) => { }, null);
-                // Return the final scores by using the STOP command
+                // Return the final scores.
+                SendScore();
 
                 // Build and send out the game summary.
+                SendGameSummary();
 
-                // Clean up all resources
-
+                // Clean up all server side resources for the two connected clients by
+                // closing the underlying socket.
+                Player1.Socket.Close();
+                Player2.Socket.Close();
             }
 
             /// <summary>
@@ -413,7 +392,7 @@ namespace BS
                 // If the game is finished, ignore any other incoming Commands. 
                 if (GameFinished == true)
                     return;
-                
+
                 // If Command is null then the client disconnected. Close the opponents 
                 // client and print a message indicating the termination of the game.
                 if (object.ReferenceEquals(null, Command))
@@ -432,12 +411,12 @@ namespace BS
                         return;
                     }
                 }
-                
+
                 // If the user sent the WORD command, then do the following:
-                else if (Command.Trim().StartsWith("WORD "))
+                else if ((Command = Command.Trim()).StartsWith("WORD "))
                 {
                     // Get the word that was played.
-                    String WordPlayed = Command.Trim().Substring(5);
+                    String WordPlayed = Command.Substring(5);
 
                     // Add the word to the user's list of words and calculate
                     // the score. Return the results to the user if any changes
@@ -591,10 +570,51 @@ namespace BS
                 Player1.Socket.BeginSend("SCORE " + Player1.PlayerScore + " " + Player2.PlayerScore + "\n", (e, o) => { }, null);
                 Player2.Socket.BeginSend("SCORE " + Player2.PlayerScore + " " + Player1.PlayerScore + "\n", (e, o) => { }, null);
             }
+
+            /// <summary>
+            /// Sends out the game summary to the two players of this Boggle game.
+            /// </summary>
+            private void SendGameSummary()
+            {
+                // Get the count of legal words that Player1 played and the corresponding
+                // whitespace seperated legal words.
+                string Player1LegalWords = string.Join(" ", Player1.LegalWords);
+                string Player1LegalCount = Player1.LegalWords.Count.ToString();
+
+                // Get the count of legal words that Player2 played and the corresponding
+                // whitespace seperated legal words.
+                string Player2LegalWords = string.Join(" ", Player2.LegalWords);
+                string Player2LegalCount = Player2.LegalWords.Count.ToString();
+
+                // Get the count of illegal words that Player1 played and the corresponding
+                // whitespace seperated illegal words.
+                string Player1IllegalWords = string.Join(" ", Player1.IllegalWords);
+                string Player1IllegalCount = Player1.IllegalWords.Count.ToString();
+
+                // Get the count of illegal words that Player2 played and the corresponding
+                // whitespace seperated illegal words.
+                string Player2IllegalWords = string.Join(" ", Player2.IllegalWords);
+                string Player2IllegalCount = Player2.IllegalWords.Count.ToString();
+
+                // Note that Player1.DuplicateWords == Player2.DuplicateWords, assuming our
+                // CalculateScore function words properly.
+                string DuplicateWords = string.Join(" ", Player1.DuplicateWords);
+                string DuplicateWordCount = Player1.DuplicateWords.Count.ToString();
+
+                string[] FormatArgs = { Player1LegalCount, Player1LegalWords, Player2LegalCount, Player2LegalWords, DuplicateWordCount,                                                    DuplicateWords, Player1IllegalCount, Player1IllegalWords, Player2IllegalCount, Player2IllegalWords };
+                
+                // Generate the game summary for each player.
+                string Player1Summary = string.Format("STOP {0} {1} {2} {3} {4} {5} {6} {7} {8} {9} \n", FormatArgs);
+                string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7} \n", FormatArgs);
+
+                // Send the game summary results to each player.
+                Player1.Socket.BeginSend(Player1Summary, (e, o) => { }, null);
+                Player2.Socket.BeginSend(Player2Summary, (e, o) => { }, null);
+            }
         }
+        #endregion
 
-
-
+        # region Private Nested PlayerData Class
         /// <summary>
         /// Used to hold all data related to a single Boggle player.
         /// </summary>
@@ -613,7 +633,7 @@ namespace BS
             public string Name { get { return this.PlayerName; } set { this.PlayerName = value; } }
             public StringSocket Socket { get { return this.PlayerSocket; } set { this.PlayerSocket = value; } }
             public int PlayerScore { get { return this.Score; } set { this.Score = value; } }
-            public HashSet<string> WordsPlayed { get { return this.Played_Words;} set { this.Played_Words = value; } }
+            public HashSet<string> WordsPlayed { get { return this.Played_Words; } set { this.Played_Words = value; } }
             public HashSet<string> LegalWords { get { return this.Legal_Words; } set { this.Legal_Words = value; } }
             public HashSet<string> IllegalWords { get { return this.Illegal_Words; } set { this.Illegal_Words = value; } }
             public HashSet<string> DuplicateWords { get { return this.Duplicate_Words; } set { this.Duplicate_Words = value; } }
@@ -634,5 +654,6 @@ namespace BS
                 this.Duplicate_Words = new HashSet<string>();
             }
         }
+        #endregion
     }
 }
