@@ -400,13 +400,13 @@ namespace BS
                     Console.WriteLine(Player.Name + " Disconnected");
                     if (Player == Player1)
                     {
-                        Player2.Socket.BeginSend("TERMINATED", (e, o) => { }, Player);
+                        Player2.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
                         Player2.Socket.Close();
                         return;
                     }
                     else
                     {
-                        Player1.Socket.BeginSend("TERMINATED", (e, o) => { }, Player);
+                        Player1.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
                         Player1.Socket.Close();
                         return;
                     }
@@ -427,7 +427,7 @@ namespace BS
                 // If the Command was anything else, reply with IGNORING and the Command.
                 else
                 {
-                    Player.Socket.BeginSend("IGNORING " + Command, (ex, o) => { }, null);
+                    Player.Socket.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
                 }
 
                 // Begin receiving more commands from the player.
@@ -604,8 +604,8 @@ namespace BS
                 string[] FormatArgs = { Player1LegalCount, Player1LegalWords, Player2LegalCount, Player2LegalWords, DuplicateWordCount,                                                    DuplicateWords, Player1IllegalCount, Player1IllegalWords, Player2IllegalCount, Player2IllegalWords };
                 
                 // Generate the game summary for each player.
-                string Player1Summary = string.Format("STOP {0} {1} {2} {3} {4} {5} {6} {7} {8} {9} \n", FormatArgs);
-                string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7} \n", FormatArgs);
+                string Player1Summary = string.Format("STOP {0} {1} {2} {3} {4} {5} {6} {7} {8} {9}\n", FormatArgs);
+                string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7}\n", FormatArgs);
 
                 // Send the game summary results to each player.
                 Player1.Socket.BeginSend(Player1Summary, (e, o) => { }, null);
