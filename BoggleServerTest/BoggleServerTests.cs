@@ -185,22 +185,105 @@ namespace BoggleServerTest
         }
 
         [TestMethod]
-        public void TestPairClients()
-        {
-            // Once the server has received connections from two clients that are ready 
-            // to play, it pairs them in a game.
-
-            // The server begins the game by sending a command to each client. The command 
-            // is "START $ # @"
-            // Assert clients receive command START $ # @
-        }
-
-        [TestMethod]
         public void TestClientDisconnect()
         {
             // If at any point during a game a client disconnects or becomes inaccessible, the 
             // game ends. The server should send the command "TERMINATED" to the surviving client 
             // and then close the socket.
+            
+            //First test: disconnection while in a game
+            // This will coordinate communication between the threads of the test cases
+            mre1 = new ManualResetEvent(false);
+            mre2 = new ManualResetEvent(false);
+            mre3 = new ManualResetEvent(false);
+            mre4 = new ManualResetEvent(false);
+
+            // Create a new Boggle Server which should begin listening for connection requests
+            BoggleServer TestServer = new BoggleServer(GameTime, DictionaryPath, null);
+
+            // Create a two clients to connect with the Boggle Server.
+            TcpClient TestClient1 = new TcpClient("localhost", 2000);
+            TcpClient TestClient2 = new TcpClient("localhost", 2000);
+
+            // Create a client socket and then a client string socket.
+            Socket ClientSocket1 = TestClient1.Client;
+            Socket ClientSocket2 = TestClient2.Client;
+            StringSocket ClientSS1 = new StringSocket(ClientSocket1, new UTF8Encoding());
+            StringSocket ClientSS2 = new StringSocket(ClientSocket2, new UTF8Encoding());
+
+            // Now our client needs to send the command PLAY @ and the server will receive it. 
+            ClientSS1.BeginSend("PLAY Client1\n", PlayCallback1, 1);
+            ClientSS2.BeginSend("PLAY Client2\n", PlayCallback2, 2);
+
+            // When a connection has been established, the client sends a command to 
+            // the server. The command is "PLAY @", where @ is the name of the player.
+            // Assert that the server receives the command PLAY @
+            ClientSS1.BeginReceive(CompletedReceive1, 1);
+            ClientSS2.BeginReceive(CompletedReceive2, 2);
+
+            // Assert that the server sent back the correct commands after the two clients
+            // connected.
+            string ExpectedExpression = @"^(START) [a-zA-Z]{16} \d+ [a-zA-Z1-9]+";
+            Assert.AreEqual(true, mre1.WaitOne(timeout), "Timed out waiting 1");
+            Assert.IsTrue(Regex.IsMatch(s1, ExpectedExpression));
+            Assert.AreEqual(true, mre2.WaitOne(timeout), "Timed out waiting 2");
+            Assert.IsTrue(Regex.IsMatch(s2, ExpectedExpression));
+
+            // Now that the game has started, we need to assert that we are receiving the
+            // Command when one client disconnects. 
+            ClientSS1.BeginReceive(CompletedReceive3, 3);
+            ClientSS1.BeginReceive(CompletedReceive4, 4);
+            ClientSS2.Close();
+
+            Assert.AreEqual(true, mre3.WaitOne(timeout), "Timed out waiting 3");
+            Assert.AreEqual("TERMINATED", s3);
+            Assert.AreEqual(3, p3);
+
+            Assert.AreEqual(true, mre4.WaitOne(timeout), "Timed out waiting 4");
+            Assert.AreEqual(null, s4);
+            Assert.AreEqual(4, p4);
+
+            // Now test for when a client connects and then disconnects after giving 
+            // the PLAY command
+            mre1 = new ManualResetEvent(false);
+            mre2 = new ManualResetEvent(false);
+            mre3 = new ManualResetEvent(false);
+
+            //Create three clients. Connect and send PLAY with the first client. 
+            // Create a two clients to connect with the Boggle Server.
+            TestClient1 = new TcpClient("localhost", 2000);
+            TestClient2 = new TcpClient("localhost", 2000);
+            TcpClient TestClient3 = new TcpClient("localhost", 2000);
+
+            // Create a client socket and then a client string socket.
+            ClientSocket1 = TestClient1.Client;
+            ClientSocket2 = TestClient2.Client;
+            Socket ClientSocket3 = TestClient3.Client;
+            ClientSS1 = new StringSocket(ClientSocket1, new UTF8Encoding());
+            ClientSS2 = new StringSocket(ClientSocket2, new UTF8Encoding());
+            StringSocket ClientSS3 = new StringSocket(ClientSocket3, new UTF8Encoding());
+
+            ClientSS1.BeginSend("PLAY Client1\n", (e, o) => { }, "1a");
+            ClientSS1.Close();
+            ClientSS1.BeginReceive(CompletedReceive1, null);
+
+            Assert.AreEqual(true, mre1.WaitOne(timeout), "Timed out waiting 1a");
+            Assert.AreEqual(null, s1);
+
+            //Now send PLAY with the other two clients and assert that they are paried together.
+            ClientSS2.BeginSend("PLAY Client2\n", (e, o) => { }, null);
+            ClientSS3.BeginSend("PLAY Client3\n", (e, o) => { }, null);
+
+
+            ClientSS2.BeginReceive(CompletedReceive2, "2a");
+            ClientSS3.BeginReceive(CompletedReceive3, "3a");
+
+            Assert.AreEqual(true, mre2.WaitOne(timeout), "Timed out waiting 2a");
+            Assert.IsTrue(Regex.IsMatch(s2, ExpectedExpression));
+            Assert.AreEqual(true, mre3.WaitOne(timeout), "Timed out waiting 3a");
+            Assert.IsTrue(Regex.IsMatch(s3, ExpectedExpression));
+
+
         }
 
         [TestMethod]
@@ -313,6 +396,8 @@ namespace BoggleServerTest
             Assert.IsTrue(Regex.IsMatch(s2, ExpectedExpression));
         }
 
+
+        #region Callbacks for Test Methods
         // This is the callback for the first receive request.  We can't make assertions anywhere
         // but the main thread, so we write the values to member variables so they can be tested
         // on the main thread.
@@ -331,6 +416,22 @@ namespace BoggleServerTest
             mre2.Set();
         }
 
+        // This is the callback for the second receive request.
+        private void CompletedReceive3(String s, Exception o, object payload)
+        {
+            s3 = s;
+            p3 = payload;
+            mre3.Set();
+        }
+
+        // This is the callback for the second receive request.
+        private void CompletedReceive4(String s, Exception o, object payload)
+        {
+            s4 = s;
+            p4 = payload;
+            mre4.Set();
+        }
+
         private void PlayCallback1(Exception error, Object Payload)
         {
             Assert.AreEqual(null, error);
@@ -343,6 +444,8 @@ namespace BoggleServerTest
             Assert.AreEqual(2, Payload);
         }
 
+
+        # endregion
         /// <summary>
         /// Finds all of the legal words of a given BoggleBoard based on the dictionary
         /// that was supplied.

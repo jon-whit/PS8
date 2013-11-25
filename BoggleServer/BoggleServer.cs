@@ -168,72 +168,77 @@ namespace BS
         /// </summary>
         private void ServerCommandReceived(String Command, Exception e, Object PlayerStringSocket)
         {
-            StringSocket PlayersSocket = (StringSocket)PlayerStringSocket;
-
-            // If Command is null then the client disconnected. Close the socket
-            // and return from this method call.
-            if (object.ReferenceEquals(null, Command))
+            lock (CommandReceived)
             {
-                PlayersSocket.Close();
-                return;
-            }
-            // If the message received is PLAY @ with @ being the name of the player, then do 
-            // the following:
-            else if ((Command = Command.Trim()).StartsWith("PLAY "))
-            {
-                // Get the name of the player from the incoming string. If a carriage return
-                // exists from telnet etc.. then it will be removed because we have trimmed
-                // the command by this point.
-                String PlayerName = Command.Substring(5);
+                StringSocket PlayersSocket = (StringSocket)PlayerStringSocket;
 
-                // Create a new PlayerData object with the PlayerName and the PlayersSocket.
-                PlayerData NewPlayer = new PlayerData(PlayerName, PlayersSocket);
-
-                // If there is nobody else waiting to play, then store the player and
-                // wait for another to join.
-                if (WaitingPlayer == null)
+                // If Command is null then the client disconnected. Close the socket
+                // and return from this method call.
+                if (object.ReferenceEquals(null, Command))
                 {
-                    WaitingPlayer = NewPlayer;
-                    Console.WriteLine(NewPlayer.Name + " Connected");
+                    PlayersSocket.Close();
+                    return;
                 }
 
-                // If there is somebody waiting for a game, then get both players and 
-                // build a game object with them. 
+                // If the message received is PLAY @ with @ being the name of the player, then do 
+                // the following:
+                else if ((Command = Command.Trim()).StartsWith("PLAY "))
+                {
+                    // Get the name of the player from the incoming string. If a carriage return
+                    // exists from telnet etc.. then it will be removed because we have trimmed
+                    // the command by this point.
+                    String PlayerName = Command.Substring(5);
+
+                    // Create a new PlayerData object with the PlayerName and the PlayersSocket.
+                    PlayerData NewPlayer = new PlayerData(PlayerName, PlayersSocket);
+
+                    // If there is nobody else waiting to play, then store the player and
+                    // wait for another to join.
+                    if (WaitingPlayer == null || !WaitingPlayer.Socket.SocketStatus())
+                    {
+                        WaitingPlayer = NewPlayer;
+                        Console.WriteLine(NewPlayer.Name + " Connected");
+                    }
+
+                    // If there is somebody waiting for a game, then get both players and 
+                    // build a game object with them. 
+                    else
+                    {
+                        Console.WriteLine(NewPlayer.Name + " Connected");
+
+                        // Get the waiting player's data
+                        PlayerData FirstPlayer = WaitingPlayer;
+
+                        // There are no more players waiting. Set WaitingPlayer = null for
+                        // future checks.
+                        WaitingPlayer = null;
+
+                        // Build a new Game object with both players.
+                        Game NewGame;
+                        if (OptionalString == null)
+                            NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords);
+                        else
+                            NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords, OptionalString);
+
+                        // Start the game between the two clients on a new Thread. This will
+                        // reduce the workload that the server has to worry about.
+                        ThreadStart Workload = new ThreadStart(NewGame.RunGame);
+                        Thread RunGame = new Thread(Workload);
+                        RunGame.Start();
+                    }
+
+                }
+
+                // If the client didn't send the PLAY command, then print an IGNORING message
+                // and continue waiting for the correct command.
                 else
                 {
-                    Console.WriteLine(NewPlayer.Name + " Connected");
+                    StringSocket ss;
+                    ss = (StringSocket)PlayerStringSocket;
 
-                    // Get the waiting player's data
-                    PlayerData FirstPlayer = WaitingPlayer;
-
-                    // There are no more players waiting. Set WaitingPlayer = null for
-                    // future checks.
-                    WaitingPlayer = null;
-
-                    // Build a new Game object with both players.
-                    Game NewGame;
-                    if (OptionalString == null)
-                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords);
-                    else
-                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords, OptionalString);
-
-                    // Start the game between the two clients on a new Thread. This will
-                    // reduce the workload that the server has to worry about.
-                    ThreadStart Workload = new ThreadStart(NewGame.RunGame);
-                    Thread RunGame = new Thread(Workload);
-                    RunGame.Start();
+                    ss.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
+                    ss.BeginReceive(ServerCommandReceived, ss);
                 }
-            }
-
-            // If the client didn't send the PLAY command, then print an IGNORING message
-            // and continue waiting for the correct command.
-            else
-            {
-                StringSocket ss;
-                ss = (StringSocket)PlayerStringSocket;
-
-                ss.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
-                ss.BeginReceive(ServerCommandReceived, ss);
             }
         }
 
@@ -341,8 +346,8 @@ namespace BS
                 for (; GameTime > 0; GameTime--)
                 {
                     // Send the TIME command with the current time to the clients.
-                    //Player1.Socket.BeginSend("TIME " + GameTime + "\n", TimeCallback, Player1);
-                    //Player2.Socket.BeginSend("TIME " + GameTime + "\n", TimeCallback, Player2);
+                    // Player1.Socket.BeginSend("TIME " + GameTime + "\n", TimeCallback, Player1);
+                    // Player2.Socket.BeginSend("TIME " + GameTime + "\n", TimeCallback, Player2);
 
                     // Sleep for one second
                     Thread.Sleep(1000);
@@ -400,13 +405,13 @@ namespace BS
                     Console.WriteLine(Player.Name + " Disconnected");
                     if (Player == Player1)
                     {
-                        Player2.Socket.BeginSend("TERMINATED", (e, o) => { }, Player);
+                        Player2.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
                         Player2.Socket.Close();
                         return;
                     }
                     else
                     {
-                        Player1.Socket.BeginSend("TERMINATED", (e, o) => { }, Player);
+                        Player1.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
                         Player1.Socket.Close();
                         return;
                     }
@@ -604,8 +609,8 @@ namespace BS
                 string[] FormatArgs = { Player1LegalCount, Player1LegalWords, Player2LegalCount, Player2LegalWords, DuplicateWordCount,                                                    DuplicateWords, Player1IllegalCount, Player1IllegalWords, Player2IllegalCount, Player2IllegalWords };
                 
                 // Generate the game summary for each player.
-                string Player1Summary = string.Format("STOP {0} {1} {2} {3} {4} {5} {6} {7} {8} {9} \n", FormatArgs);
-                string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7} \n", FormatArgs);
+                string Player1Summary = string.Format("STOP {0} {1} {2} {3} {4} {5} {6} {7} {8} {9}\n", FormatArgs);
+                string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7}\n", FormatArgs);
 
                 // Send the game summary results to each player.
                 Player1.Socket.BeginSend(Player1Summary, (e, o) => { }, null);
