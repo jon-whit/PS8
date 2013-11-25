@@ -194,7 +194,7 @@ namespace BS
 
                     // If there is nobody else waiting to play, then store the player and
                     // wait for another to join.
-                    if (WaitingPlayer == null || !WaitingPlayer.Socket.SocketStatus())
+                    if (WaitingPlayer == null || !WaitingPlayer.Socket.Connected)
                     {
                         WaitingPlayer = NewPlayer;
                         Console.WriteLine(NewPlayer.Name + " Connected");
