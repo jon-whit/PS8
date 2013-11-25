@@ -166,76 +166,76 @@ namespace BS
         /// there are no waiting players, then the waiting player is stored until a new client
         /// connects.
         /// </summary>
-        private void ServerCommandReceived(String Command, Exception e, Object PlayerStringSocket)
+private void ServerCommandReceived(String Command, Exception e, Object PlayerStringSocket)
+{
+    StringSocket PlayersSocket = (StringSocket)PlayerStringSocket;
+
+    // If Command is null then the client disconnected. Close the socket
+    // and return from this method call.
+    if (object.ReferenceEquals(null, Command))
+    {
+        PlayersSocket.Close();
+        return;
+    }
+    // If the message received is PLAY @ with @ being the name of the player, then do 
+    // the following:
+    else if ((Command = Command.Trim()).StartsWith("PLAY "))
+    {
+        // Get the name of the player from the incoming string. If a carriage return
+        // exists from telnet etc.. then it will be removed because we have trimmed
+        // the command by this point.
+        String PlayerName = Command.Substring(5);
+
+        // Create a new PlayerData object with the PlayerName and the PlayersSocket.
+        PlayerData NewPlayer = new PlayerData(PlayerName, PlayersSocket);
+
+        // If there is nobody else waiting to play, then store the player and
+        // wait for another to join.
+        if (WaitingPlayer == null)
         {
-            StringSocket PlayersSocket = (StringSocket)PlayerStringSocket;
-
-            // If Command is null then the client disconnected. Close the socket
-            // and return from this method call.
-            if (object.ReferenceEquals(null, Command))
-            {
-                PlayersSocket.Close();
-                return;
-            }
-            // If the message received is PLAY @ with @ being the name of the player, then do 
-            // the following:
-            else if ((Command = Command.Trim()).StartsWith("PLAY "))
-            {
-                // Get the name of the player from the incoming string. If a carriage return
-                // exists from telnet etc.. then it will be removed because we have trimmed
-                // the command by this point.
-                String PlayerName = Command.Substring(5);
-
-                // Create a new PlayerData object with the PlayerName and the PlayersSocket.
-                PlayerData NewPlayer = new PlayerData(PlayerName, PlayersSocket);
-
-                // If there is nobody else waiting to play, then store the player and
-                // wait for another to join.
-                if (WaitingPlayer == null)
-                {
-                    WaitingPlayer = NewPlayer;
-                    Console.WriteLine(NewPlayer.Name + " Connected");
-                }
-
-                // If there is somebody waiting for a game, then get both players and 
-                // build a game object with them. 
-                else
-                {
-                    Console.WriteLine(NewPlayer.Name + " Connected");
-
-                    // Get the waiting player's data
-                    PlayerData FirstPlayer = WaitingPlayer;
-
-                    // There are no more players waiting. Set WaitingPlayer = null for
-                    // future checks.
-                    WaitingPlayer = null;
-
-                    // Build a new Game object with both players.
-                    Game NewGame;
-                    if (OptionalString == null)
-                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords);
-                    else
-                        NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords, OptionalString);
-
-                    // Start the game between the two clients on a new Thread. This will
-                    // reduce the workload that the server has to worry about.
-                    ThreadStart Workload = new ThreadStart(NewGame.RunGame);
-                    Thread RunGame = new Thread(Workload);
-                    RunGame.Start();
-                }
-            }
-
-            // If the client didn't send the PLAY command, then print an IGNORING message
-            // and continue waiting for the correct command.
-            else
-            {
-                StringSocket ss;
-                ss = (StringSocket)PlayerStringSocket;
-
-                ss.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
-                ss.BeginReceive(ServerCommandReceived, ss);
-            }
+            WaitingPlayer = NewPlayer;
+            Console.WriteLine(NewPlayer.Name + " Connected");
         }
+
+        // If there is somebody waiting for a game, then get both players and 
+        // build a game object with them. 
+        else
+        {
+            Console.WriteLine(NewPlayer.Name + " Connected");
+
+            // Get the waiting player's data
+            PlayerData FirstPlayer = WaitingPlayer;
+
+            // There are no more players waiting. Set WaitingPlayer = null for
+            // future checks.
+            WaitingPlayer = null;
+
+            // Build a new Game object with both players.
+            Game NewGame;
+            if (OptionalString == null)
+                NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords);
+            else
+                NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords, OptionalString);
+
+            // Start the game between the two clients on a new Thread. This will
+            // reduce the workload that the server has to worry about.
+            ThreadStart Workload = new ThreadStart(NewGame.RunGame);
+            Thread RunGame = new Thread(Workload);
+            RunGame.Start();
+        }
+    }
+
+    // If the client didn't send the PLAY command, then print an IGNORING message
+    // and continue waiting for the correct command.
+    else
+    {
+        StringSocket ss;
+        ss = (StringSocket)PlayerStringSocket;
+
+        ss.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
+        ss.BeginReceive(ServerCommandReceived, ss);
+    }
+}
 
         #region Private Nested Game Class
         /// <summary>
