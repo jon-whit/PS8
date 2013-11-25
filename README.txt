@@ -7,11 +7,5 @@ a player connected and then disconnected before another player conected. **
 
 ** TODO: Delete all carriage returns from Send method strings **
 ** TODO: Uncomment the BeginSend command on the time          **
-
-Change Log:
-	* ServerCommandReceived: 
-	* What if the user disconnects before sending any initial command? I have included support to handle this.
-	* I made each game run on its own thread now.
-
-	* EndGame:
-	* Added a helper to send out the game summary to each client.
+** TODO: Determine how to handle exceptions that may be returned in a callback. **
+** TODO: Determine how to adjust for a player that disconnects while he is waiting. **
