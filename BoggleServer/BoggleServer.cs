@@ -432,7 +432,7 @@ namespace BS
                 // If the Command was anything else, reply with IGNORING and the Command.
                 else
                 {
-                    Player.Socket.BeginSend("IGNORING " + Command, (ex, o) => { }, null);
+                    Player.Socket.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
                 }
 
                 // Begin receiving more commands from the player.
