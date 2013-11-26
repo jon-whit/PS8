@@ -257,6 +257,7 @@ namespace BS
             private bool GameFinished;      // Indicates if time has run out. 
             private BoggleBoard GameBoard;  // The boggle board to be played on. 
             private HashSet<string> DictionaryWords;
+            private readonly object WordPlayedLock;
 
             /// <summary>
             /// Initializes a Game. Creates a BoggleBoard and initializes GameTime to the 
@@ -278,6 +279,7 @@ namespace BS
                 this.GameTime = GameTime;
                 this.DictionaryWords = DictionaryWords;
                 this.GameFinished = false;
+                this.WordPlayedLock = new object();
             }
 
             /// <summary>
@@ -303,6 +305,7 @@ namespace BS
                 this.GameTime = GameTime;
                 this.DictionaryWords = DictionaryWords;
                 this.GameFinished = false;
+                this.WordPlayedLock = new object();
             }
 
             /// <summary>
@@ -392,51 +395,60 @@ namespace BS
             /// <param name="Payload"></param>
             private void CommandRecieved(String Command, Exception Problem, Object Payload)
             {
-                PlayerData Player = (PlayerData)Payload;
-
-                // If the game is finished, ignore any other incoming Commands. 
-                if (GameFinished == true)
-                    return;
-
-                // If Command is null then the client disconnected. Close the opponents 
-                // client and print a message indicating the termination of the game.
-                if (object.ReferenceEquals(null, Command))
+                lock (WordPlayedLock)
                 {
-                    Console.WriteLine(Player.Name + " Disconnected");
-                    if (Player == Player1)
-                    {
-                        Player2.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
-                        Player2.Socket.Close();
+                    PlayerData Player = (PlayerData)Payload;
+
+                    // If the game is finished, ignore any other incoming Commands. 
+                    if (GameFinished == true)
                         return;
+
+                    // If Command is null then the client disconnected. Close the opponents 
+                    // client and print a message indicating the termination of the game.
+                    if (object.ReferenceEquals(null, Command))
+                    {
+                        Console.WriteLine(Player.Name + " Disconnected");
+                        if (Player == Player1)
+                        {
+                            Player2.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
+                            Player2.Socket.Close();
+                            return;
+                        }
+                        else
+                        {
+                            Player1.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
+                            Player1.Socket.Close();
+                            return;
+                        }
                     }
+
+                    // If the user sent the WORD command, then do the following:
+                    else if ((Command = Command.ToUpper().Trim()).StartsWith("WORD "))
+                    {
+                        // Get the word that was played.
+                        String WordPlayed = Command.Substring(5);
+
+                        // If the user played a word containing a Q and the word that was
+                        // played is illegal, then append a U and check if that is legal.
+                        if (WordPlayed.Contains('Q') && !IsLegal(WordPlayed))
+                            WordPlayed = WordPlayed.Replace("Q", "QU");
+
+
+                        // Add the word to the user's list of words and calculate
+                        // the score. Return the results to the user if any changes
+                        // occured to the score.
+                        CalculateScore(WordPlayed, Player);
+                    }
+
+                    // If the Command was anything else, reply with IGNORING and the Command.
                     else
                     {
-                        Player1.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
-                        Player1.Socket.Close();
-                        return;
+                        Player.Socket.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
                     }
+
+                    // Begin receiving more commands from the player.
+                    Player.Socket.BeginReceive(CommandRecieved, Player);
                 }
-
-                // If the user sent the WORD command, then do the following:
-                else if ((Command = Command.Trim()).StartsWith("WORD "))
-                {
-                    // Get the word that was played.
-                    String WordPlayed = Command.Substring(5);
-
-                    // Add the word to the user's list of words and calculate
-                    // the score. Return the results to the user if any changes
-                    // occured to the score.
-                    CalculateScore(WordPlayed, Player);
-                }
-
-                // If the Command was anything else, reply with IGNORING and the Command.
-                else
-                {
-                    Player.Socket.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
-                }
-
-                // Begin receiving more commands from the player.
-                Player.Socket.BeginReceive(CommandRecieved, Player);
             }
 
             /// <summary>
