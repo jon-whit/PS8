@@ -216,7 +216,7 @@ namespace BS
                         // Build a new Game object with both players.
                         Game NewGame;
                         if (OptionalString == null)
-                            NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords);
+                            NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords, null);
                         else
                             NewGame = new Game(FirstPlayer, NewPlayer, GameLength, DictionaryWords, OptionalString);
 
@@ -260,29 +260,6 @@ namespace BS
             private readonly object WordPlayedLock;
 
             /// <summary>
-            /// Initializes a Game. Creates a BoggleBoard and initializes GameTime to the 
-            /// given time, Player1 and Player2 to their respective global pointers, and 
-            /// GameFinished to false. No game operation happens here, only the 
-            /// initialization of variables. 
-            /// </summary>
-            /// <param name="Player1">The first player</param>
-            /// <param name="Player2">The second player</param>
-            /// <param name="GameTime">The length of the game (in seconds)</param>
-            public Game(PlayerData Player1, PlayerData Player2, int GameTime, HashSet<string> DictionaryWords)
-            {
-                // Create a BoggleBoard
-                this.GameBoard = new BoggleBoard();
-
-                // Intialize all other instance variables.
-                this.Player1 = Player1;
-                this.Player2 = Player2;
-                this.GameTime = GameTime;
-                this.DictionaryWords = DictionaryWords;
-                this.GameFinished = false;
-                this.WordPlayedLock = new object();
-            }
-
-            /// <summary>
             /// Initializes a Game. Creates a BoggleBoard with the OptionalString as 
             /// the letters used in the board. It also initializes GameTime to the 
             /// given time, Player1 and Player2 to their respective global pointers,
@@ -296,8 +273,11 @@ namespace BS
             /// indicates which letters should be used for the game board.</param>
             public Game(PlayerData Player1, PlayerData Player2, int GameTime, HashSet<string> DictionaryWords, String OptionalString)
             {
-                // Create a BoggleBoard with the OptionalString as the Board's String.
-                this.GameBoard = new BoggleBoard(OptionalString);
+                // Create a BoggleBoard with or without the OptionalString according to what was given.
+                if(OptionalString == null)
+                    this.GameBoard = new BoggleBoard();
+                else
+                    this.GameBoard = new BoggleBoard(OptionalString);
 
                 // Intialize all other instance variables.
                 this.Player1 = Player1;
@@ -377,11 +357,6 @@ namespace BS
 
                 // Build and send out the game summary.
                 SendGameSummary();
-
-                // Clean up all server side resources for the two connected clients by
-                // closing the underlying socket.
-                Player1.Socket.Close();
-                Player2.Socket.Close();
             }
 
             /// <summary>
@@ -625,8 +600,26 @@ namespace BS
                 string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7}\n", FormatArgs);
 
                 // Send the game summary results to each player.
-                Player1.Socket.BeginSend(Player1Summary, (e, o) => { }, null);
-                Player2.Socket.BeginSend(Player2Summary, (e, o) => { }, null);
+                Player1.Socket.BeginSend(Player1Summary, GameSummaryCallback1, null);
+                Player2.Socket.BeginSend(Player2Summary, GameSummaryCallback2, null);
+            }
+
+            private void GameSummaryCallback1(Exception e, Object o)
+            {
+                //Determine what to do with e and o
+
+                // Clean up all server side resources for the two connected clients by
+                // closing the underlying socket.
+                Player1.Socket.Close();
+            }
+
+            private void GameSummaryCallback2(Exception e, Object o)
+            {
+                //Determine what to do with e and o
+
+                // Clean up all server side resources for the two connected clients by
+                // closing the underlying socket.
+                Player2.Socket.Close();
             }
         }
         #endregion

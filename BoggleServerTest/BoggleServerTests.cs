@@ -19,7 +19,7 @@ namespace BoggleServerTest
         // Generate the BoggleServer
         private static string GameboardString = "QDDEATSDCIESKYTI";
         private static string DictionaryPath = "..//..//..//Solution Items//dictionary.txt";
-        private static BoggleServer TestServer = new BoggleServer(20, DictionaryPath, GameboardString);
+        private static BoggleServer TestServer = new BoggleServer(5, DictionaryPath, GameboardString);
 
         // Create a HashSet containing all of the unique words in the
         // supplied dictionary.
@@ -1782,6 +1782,477 @@ namespace BoggleServerTest
                 Assert.AreEqual(2, Payload);
             }
         }
+        #endregion
+
+        #region Game Summary Tests
+
+        [TestMethod]
+        public void TestGameSummary()
+        {
+            new GameSummaryTests().TestBasicGameSummary();
+            new GameSummaryTests().TestHeavyGameSummary();
+        }
+
+        [TestClass]
+        private class GameSummaryTests
+        {
+            // Instance variables for the test
+            private ManualResetEvent mre1;
+            private ManualResetEvent mre2;
+            private ManualResetEvent mre3;
+            private ManualResetEvent mre4;
+
+            private String s1;
+            private object p1;
+            private String s2;
+            private object p2;
+            private String s3;
+            private object p3;
+            private String s4;
+            private object p4;
+
+            TcpClient TestClient1;
+            TcpClient TestClient2;
+
+            // Create a client socket and then a client string socket.
+            Socket ClientSocket1;
+            Socket ClientSocket2;
+            StringSocket ClientSS1;
+            StringSocket ClientSS2;
+
+            // A timeout for the game summary
+            int SummaryTimeout = 30000;
+
+            public void TestBasicGameSummary()
+            {
+                try
+                {
+                    // Initialize Clients
+                    InitializeClients();
+
+                    // Initialize legal/illegal hash sets
+                    HashSet<String> LegalWords = FindXLetterWords(GameboardString, 3);
+                    HashSet<String> IllegalWords = FindIllegalWords(GameboardString);
+
+                    HashSet<String> Client1LegalWordsToSend = new HashSet<string>();
+                    HashSet<String> Client2LegalWordsToSend = new HashSet<string>();
+                    HashSet<String> Client1IllegalWordsToSend = new HashSet<string>();
+                    HashSet<String> Client2IllegalWordsToSend = new HashSet<string>();
+                    HashSet<String> DuplicateWordsToSend = new HashSet<string>();
+
+                    Client1LegalWordsToSend.Add(LegalWords.ElementAt(0));
+                    Client2LegalWordsToSend.Add(LegalWords.ElementAt(1));
+                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(0));
+                    Client2IllegalWordsToSend.Add(IllegalWords.ElementAt(1));
+                    DuplicateWordsToSend.Add(LegalWords.ElementAt(2));
+
+                    // Send a legal word from both clients
+                    SendCommand(ClientSS1,Client1LegalWordsToSend);
+                    SendCommand(ClientSS2, Client2LegalWordsToSend);
+
+                    // Send an illegal word from both clients
+                    SendCommand(ClientSS1, Client1IllegalWordsToSend);
+                    SendCommand(ClientSS2, Client2IllegalWordsToSend);
+
+                    // Send a duplicate from both clients
+                    SendCommand(ClientSS1, DuplicateWordsToSend);
+                    SendCommand(ClientSS2, DuplicateWordsToSend);
+
+                    CallReceive(ClientSS1, ClientSS2, 8);
+
+                    String[] ExpectedSummaries = BuildExpectedSummary(Client1LegalWordsToSend.Count, Client2LegalWordsToSend.Count, DuplicateWordsToSend.Count,                                     Client1IllegalWordsToSend.Count, Client2IllegalWordsToSend.Count, Client1LegalWordsToSend, Client2LegalWordsToSend, Client1IllegalWordsToSend,
+                        Client2IllegalWordsToSend, DuplicateWordsToSend);
+
+                    //Assert that the game summary is correct
+                    Assert.AreEqual(true, mre1.WaitOne(SummaryTimeout), "Timed out waiting 1");
+                    Assert.AreEqual(true, mre2.WaitOne(SummaryTimeout), "Timed out waiting 2");
+                    Assert.AreEqual(ExpectedSummaries[0], s1);
+                    Assert.AreEqual(ExpectedSummaries[1], s2);
+                }
+                finally
+                {
+                    ClientSS1.Close();
+                    ClientSS2.Close();
+                }
+            }
+
+            public void TestHeavyGameSummary()
+            {
+                try
+                {
+                    // Initialize Clients
+                    InitializeClients();
+
+                    // Initialize legal/illegal hash sets
+                    HashSet<String> LegalWords = FindXLetterWords(GameboardString, 3);
+                    HashSet<String> IllegalWords = FindIllegalWords(GameboardString);
+
+                    HashSet<String> Client1LegalWordsToSend = new HashSet<string>();
+                    HashSet<String> Client2LegalWordsToSend = new HashSet<string>();
+                    HashSet<String> Client1IllegalWordsToSend = new HashSet<string>();
+                    HashSet<String> Client2IllegalWordsToSend = new HashSet<string>();
+                    HashSet<String> DuplicateWordsToSend = new HashSet<string>();
+
+                    Client1LegalWordsToSend.Add(LegalWords.ElementAt(0));
+                    Client1LegalWordsToSend.Add(LegalWords.ElementAt(1));
+                    Client1LegalWordsToSend.Add(LegalWords.ElementAt(2));
+                    Client1LegalWordsToSend.Add(LegalWords.ElementAt(3));
+                    Client1LegalWordsToSend.Add(LegalWords.ElementAt(4));
+                    Client2LegalWordsToSend.Add(LegalWords.ElementAt(5));
+                    Client2LegalWordsToSend.Add(LegalWords.ElementAt(6));
+                    Client2LegalWordsToSend.Add(LegalWords.ElementAt(7));
+                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(0));
+                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(1));
+                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(2));
+                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(3));
+                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(4));
+                    Client2IllegalWordsToSend.Add(IllegalWords.ElementAt(5));
+                    Client2IllegalWordsToSend.Add(IllegalWords.ElementAt(6));
+                    DuplicateWordsToSend.Add(LegalWords.ElementAt(8));
+                    DuplicateWordsToSend.Add(LegalWords.ElementAt(9));
+
+                    // Send a legal word from both clients
+                    SendCommand(ClientSS1, Client1LegalWordsToSend);
+                    SendCommand(ClientSS2, Client2LegalWordsToSend);
+
+                    // Send an illegal word from both clients
+                    SendCommand(ClientSS1, Client1IllegalWordsToSend);
+                    SendCommand(ClientSS2, Client2IllegalWordsToSend);
+
+                    // Send a duplicate from both clients
+                    SendCommand(ClientSS1, DuplicateWordsToSend);
+                    SendCommand(ClientSS2, DuplicateWordsToSend);
+
+                    CallReceive(ClientSS1, ClientSS2, 18);
+
+                    String[] ExpectedSummaries = BuildExpectedSummary(Client1LegalWordsToSend.Count, Client2LegalWordsToSend.Count, DuplicateWordsToSend.Count,                                     Client1IllegalWordsToSend.Count, Client2IllegalWordsToSend.Count, Client1LegalWordsToSend, Client2LegalWordsToSend, Client1IllegalWordsToSend,
+                        Client2IllegalWordsToSend, DuplicateWordsToSend);
+
+                    //Assert that the game summary is correct
+                    Assert.AreEqual(true, mre1.WaitOne(SummaryTimeout), "Timed out waiting 1");
+                    Assert.AreEqual(true, mre2.WaitOne(SummaryTimeout), "Timed out waiting 2");
+                    Assert.AreEqual(ExpectedSummaries[0], s1);
+                    Assert.AreEqual(ExpectedSummaries[1], s2);
+                }
+                finally
+                {
+                    ClientSS1.Close();
+                    ClientSS2.Close();
+                }
+            }
+
+            private void InitializeClients()
+            {
+                //We will be receiving 
+                // This will coordinate communication between the threads of the test cases
+                mre1 = new ManualResetEvent(false);
+                mre2 = new ManualResetEvent(false);
+
+                // Create a two clients to connect with the Boggle Server.
+                TestClient1 = new TcpClient("localhost", 2000);
+                TestClient2 = new TcpClient("localhost", 2000);
+
+                // Create a client socket and then a client string socket.
+                ClientSocket1 = TestClient1.Client;
+                ClientSocket2 = TestClient2.Client;
+                ClientSS1 = new StringSocket(ClientSocket1, new UTF8Encoding());
+                ClientSS2 = new StringSocket(ClientSocket2, new UTF8Encoding());
+
+                // Case 1: The user doesn't begin with the PLAY command.
+                ClientSS1.BeginSend("PLAY Client1\n", PlayCallback1, 1);
+                ClientSS2.BeginSend("PLAY Client2\n", PlayCallback2, 2);
+
+                // When the connection between the server and clients is established,
+                // the server expects the command PLAY @. But in this case we didn't
+                // send that command, so we should expect an IGNORING reply from the
+                // server.
+                ClientSS1.BeginReceive(StartReceive1, 1);
+                ClientSS2.BeginReceive(StartReceive2, 2);
+
+                // Assert that the server sent back the correct commands after the two clients
+                // connected.
+                string ExpectedExpression = @"^(START) [a-zA-Z]{16} \d+ [a-zA-Z1-9]+";
+                Assert.AreEqual(true, mre1.WaitOne(timeout), "Timed out waiting 1");
+                Assert.IsTrue(Regex.IsMatch(s1, ExpectedExpression));
+                Assert.AreEqual(true, mre2.WaitOne(timeout), "Timed out waiting 2");
+                Assert.IsTrue(Regex.IsMatch(s2, ExpectedExpression));
+            }
+
+            private void SendCommand(StringSocket Socket1, HashSet<String> WordsToSend)
+            {
+                foreach(String s in WordsToSend)
+                {
+                    Socket1.BeginSend("WORD " + s + "\n", PlayCallback1, 1);
+                }
+            }
+
+            private void CallReceive(StringSocket Socket1, StringSocket Socket2, int NumberOfReceives)
+            {
+                mre1 = new ManualResetEvent(false);
+                mre2 = new ManualResetEvent(false);
+
+                for (int i = 0; i < NumberOfReceives; i++)
+                {
+                    Socket1.BeginReceive(CompletedReceive1, 1);
+                    Socket2.BeginReceive(CompletedReceive2, 2);
+                }
+
+            }
+
+            private String[] BuildExpectedSummary(int a, int b, int c, int d, int e, HashSet<string> Client1LegalWords, HashSet<string> Client2LegalWords, HashSet<string>                                                    Client1IllegalWords, HashSet<string> Client2IllegalWords, HashSet<string> DuplicateWords)
+            {
+                // Get the count of legal words that Player1 played and the corresponding
+                // whitespace seperated legal words.
+                string Player1LegalWords = string.Join(" ", Client1LegalWords);
+
+                // Get the count of legal words that Player2 played and the corresponding
+                // whitespace seperated legal words.
+                string Player2LegalWords = string.Join(" ", Client2LegalWords);
+
+                // Get the count of illegal words that Player1 played and the corresponding
+                // whitespace seperated illegal words.
+                string Player1IllegalWords = string.Join(" ", Client1IllegalWords);
+
+                // Get the count of illegal words that Player2 played and the corresponding
+                // whitespace seperated illegal words.
+                string Player2IllegalWords = string.Join(" ", Client2IllegalWords);
+
+                // Note that Player1.DuplicateWords == Player2.DuplicateWords, assuming our
+                // CalculateScore function words properly.
+                string DuplicateWordsString = string.Join(" ", DuplicateWords);
+
+                string[] FormatArgs = { Player1LegalWords, Player2LegalWords, DuplicateWordsString ,Player1IllegalWords, Player2IllegalWords };
+
+                // Generate the game summary for each player.
+                String Player1Summary = string.Format("STOP " + a + " {0} "  + b + " {1} " + c + " {2} " + d + " {3} " + e + " {4}", FormatArgs);
+                String Player2Summary = string.Format("STOP " + b + " {1} " + a + " {0} " + c + " {2} " + e + " {4} " + d + " {3}", FormatArgs);
+
+                return new String[] { Player1Summary, Player2Summary };
+
+            }
+
+            private void CompletedReceive1(String s, Exception o, object payload)
+            {
+                lock (IllegalWordsLock)
+                {
+                    s1 = s;
+                    p1 = payload;
+
+                    if (s.StartsWith("STOP "))
+                    {
+                        mre1.Set();
+                    }
+                }
+            }
+
+            // This is the callback for the second receive request.
+            private void CompletedReceive2(String s, Exception o, object payload)
+            {
+                lock (IllegalWordsLock)
+                {
+                    s2 = s;
+                    p2 = payload;
+
+                    if (s.StartsWith("STOP "))
+                    {
+                        mre2.Set();
+                    }
+                }
+            }
+
+            private void StartReceive1(String s, Exception o, object payload)
+            {
+                s1 = s;
+                p1 = payload;
+                mre1.Set();
+            }
+
+            private void StartReceive2(String s, Exception o, object payload)
+            {
+                s2 = s;
+                p2 = payload;
+                mre2.Set();
+            }
+
+            private void PlayCallback1(Exception error, Object Payload)
+            {
+                Assert.AreEqual(null, error);
+                Assert.AreEqual(1, Payload);
+            }
+
+            private void PlayCallback2(Exception error, Object Payload)
+            {
+                Assert.AreEqual(null, error);
+                Assert.AreEqual(2, Payload);
+            }
+
+        }
+
+
+        #endregion
+
+        #region Ignoring Illegal Commands Tests
+
+        [TestMethod]
+        public void TestIgnoringCommand()
+        {
+            new IgnoringCommandTests().TestIgnoring1();
+        }
+
+        [TestClass]
+        private class IgnoringCommandTests
+        {
+            // Instance variables for the test
+            private ManualResetEvent mre1;
+            private ManualResetEvent mre2;
+            private ManualResetEvent mre3;
+            private ManualResetEvent mre4;
+
+            private String s1;
+            private object p1;
+            private String s2;
+            private object p2;
+            private String s3;
+            private object p3;
+            private String s4;
+            private object p4;
+
+            TcpClient TestClient1;
+            TcpClient TestClient2;
+
+            // Create a client socket and then a client string socket.
+            Socket ClientSocket1;
+            Socket ClientSocket2;
+            StringSocket ClientSS1;
+            StringSocket ClientSS2;
+
+            public void TestIgnoring1()
+            {
+                try
+                {
+                    // Initialize Clients
+                    InitializeClients();
+
+                    // Initialize legal/illegal hash sets
+                    HashSet<String> LegalWords = FindXLetterWords(GameboardString, 3);
+                    HashSet<String> IllegalWords = FindIllegalWords(GameboardString);
+
+                    SendCommand(ClientSS1, "Blah blah blah");
+
+                    CallReceive(ClientSS1);
+
+                    string ExpectedResponse = "IGNORING BLAH BLAH BLAH";
+
+                    //Assert that the game summary is correct
+                    Assert.AreEqual(true, mre1.WaitOne(timeout), "Timed out waiting 1");
+                    Assert.AreEqual(ExpectedResponse, s1);
+                }
+                finally
+                {
+                    ClientSS1.Close();
+                    ClientSS2.Close();
+                }
+            }
+            
+            private void InitializeClients()
+            {
+                //We will be receiving 
+                // This will coordinate communication between the threads of the test cases
+                mre1 = new ManualResetEvent(false);
+                mre2 = new ManualResetEvent(false);
+
+                // Create a two clients to connect with the Boggle Server.
+                TestClient1 = new TcpClient("localhost", 2000);
+                TestClient2 = new TcpClient("localhost", 2000);
+
+                // Create a client socket and then a client string socket.
+                ClientSocket1 = TestClient1.Client;
+                ClientSocket2 = TestClient2.Client;
+                ClientSS1 = new StringSocket(ClientSocket1, new UTF8Encoding());
+                ClientSS2 = new StringSocket(ClientSocket2, new UTF8Encoding());
+
+                // Case 1: The user doesn't begin with the PLAY command.
+                ClientSS1.BeginSend("PLAY Client1\n", PlayCallback1, 1);
+                ClientSS2.BeginSend("PLAY Client2\n", PlayCallback2, 2);
+
+                // When the connection between the server and clients is established,
+                // the server expects the command PLAY @. But in this case we didn't
+                // send that command, so we should expect an IGNORING reply from the
+                // server.
+                ClientSS1.BeginReceive(StartReceive1, 1);
+                ClientSS2.BeginReceive(StartReceive2, 2);
+
+                // Assert that the server sent back the correct commands after the two clients
+                // connected.
+                string ExpectedExpression = @"^(START) [a-zA-Z]{16} \d+ [a-zA-Z1-9]+";
+                Assert.AreEqual(true, mre1.WaitOne(timeout), "Timed out waiting 1");
+                Assert.IsTrue(Regex.IsMatch(s1, ExpectedExpression));
+                Assert.AreEqual(true, mre2.WaitOne(timeout), "Timed out waiting 2");
+                Assert.IsTrue(Regex.IsMatch(s2, ExpectedExpression));
+            }
+
+            private void SendCommand(StringSocket Socket1, String Command)
+            {
+                    Socket1.BeginSend(Command + "\n", PlayCallback1, 1);
+            }
+
+            private void CallReceive(StringSocket Socket1)
+            {
+                mre1 = new ManualResetEvent(false);
+
+                    Socket1.BeginReceive(CompletedReceive1, 1);
+
+            }
+
+            private void CompletedReceive1(String s, Exception o, object payload)
+            {
+                    s1 = s;
+                    p1 = payload;
+                    mre1.Set();
+            }
+
+            // This is the callback for the second receive request.
+            private void CompletedReceive2(String s, Exception o, object payload)
+            {
+                lock (IllegalWordsLock)
+                {
+                    s2 = s;
+                    p2 = payload;
+
+                    if (s.StartsWith("STOP "))
+                    {
+                        mre2.Set();
+                    }
+                }
+            }
+
+            private void StartReceive1(String s, Exception o, object payload)
+            {
+                s1 = s;
+                p1 = payload;
+                mre1.Set();
+            }
+
+            private void StartReceive2(String s, Exception o, object payload)
+            {
+                s2 = s;
+                p2 = payload;
+                mre2.Set();
+            }
+
+            private void PlayCallback1(Exception error, Object Payload)
+            {
+                Assert.AreEqual(null, error);
+                Assert.AreEqual(1, Payload);
+            }
+
+            private void PlayCallback2(Exception error, Object Payload)
+            {
+                Assert.AreEqual(null, error);
+                Assert.AreEqual(2, Payload);
+            }
+        }
+
         #endregion
 
         #region Helpers for Finding Legal/Illegal Words
