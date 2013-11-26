@@ -1821,7 +1821,7 @@ namespace BoggleServerTest
             StringSocket ClientSS2;
 
             // A timeout for the game summary
-            int SummaryTimeout = 30000;
+            int SummaryTimeout = 5000;
 
             public void TestBasicGameSummary()
             {
@@ -1896,18 +1896,8 @@ namespace BoggleServerTest
                     Client1LegalWordsToSend.Add(LegalWords.ElementAt(0));
                     Client1LegalWordsToSend.Add(LegalWords.ElementAt(1));
                     Client1LegalWordsToSend.Add(LegalWords.ElementAt(2));
-                    Client1LegalWordsToSend.Add(LegalWords.ElementAt(3));
-                    Client1LegalWordsToSend.Add(LegalWords.ElementAt(4));
-                    Client2LegalWordsToSend.Add(LegalWords.ElementAt(5));
-                    Client2LegalWordsToSend.Add(LegalWords.ElementAt(6));
-                    Client2LegalWordsToSend.Add(LegalWords.ElementAt(7));
                     Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(0));
                     Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(1));
-                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(2));
-                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(3));
-                    Client1IllegalWordsToSend.Add(IllegalWords.ElementAt(4));
-                    Client2IllegalWordsToSend.Add(IllegalWords.ElementAt(5));
-                    Client2IllegalWordsToSend.Add(IllegalWords.ElementAt(6));
                     DuplicateWordsToSend.Add(LegalWords.ElementAt(8));
                     DuplicateWordsToSend.Add(LegalWords.ElementAt(9));
 
@@ -1923,9 +1913,9 @@ namespace BoggleServerTest
                     SendCommand(ClientSS1, DuplicateWordsToSend);
                     SendCommand(ClientSS2, DuplicateWordsToSend);
 
-                    CallReceive(ClientSS1, ClientSS2, 18);
+                    CallReceive(ClientSS1, ClientSS2, 17);
 
-                    String[] ExpectedSummaries = BuildExpectedSummary(Client1LegalWordsToSend.Count, Client2LegalWordsToSend.Count, DuplicateWordsToSend.Count,                                     Client1IllegalWordsToSend.Count, Client2IllegalWordsToSend.Count, Client1LegalWordsToSend, Client2LegalWordsToSend, Client1IllegalWordsToSend,
+                    String[] ExpectedSummaries = BuildExpectedSummary(Client1LegalWordsToSend.Count, Client2LegalWordsToSend.Count,             DuplicateWordsToSend.Count, Client1IllegalWordsToSend.Count, Client2IllegalWordsToSend.Count, Client1LegalWordsToSend, Client2LegalWordsToSend, Client1IllegalWordsToSend,
                         Client2IllegalWordsToSend, DuplicateWordsToSend);
 
                     //Assert that the game summary is correct

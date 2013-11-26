@@ -357,6 +357,9 @@ namespace BS
 
                 // Build and send out the game summary.
                 SendGameSummary();
+
+                Player1.Socket.Close();
+                Player2.Socket.Close();
             }
 
             /// <summary>
@@ -600,26 +603,8 @@ namespace BS
                 string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7}\n", FormatArgs);
 
                 // Send the game summary results to each player.
-                Player1.Socket.BeginSend(Player1Summary, GameSummaryCallback1, null);
-                Player2.Socket.BeginSend(Player2Summary, GameSummaryCallback2, null);
-            }
-
-            private void GameSummaryCallback1(Exception e, Object o)
-            {
-                //Determine what to do with e and o
-
-                // Clean up all server side resources for the two connected clients by
-                // closing the underlying socket.
-                Player1.Socket.Close();
-            }
-
-            private void GameSummaryCallback2(Exception e, Object o)
-            {
-                //Determine what to do with e and o
-
-                // Clean up all server side resources for the two connected clients by
-                // closing the underlying socket.
-                Player2.Socket.Close();
+                Player1.Socket.BeginSend(Player1Summary, (e, o) => { }, null);
+                Player2.Socket.BeginSend(Player2Summary, (e, o) => { }, null);
             }
         }
         #endregion
@@ -640,13 +625,13 @@ namespace BS
 
 
             // Public Properties used to get the member variables of a given PlayerData instance:
-            public string Name { get { return this.PlayerName; } set { this.PlayerName = value; } }
-            public StringSocket Socket { get { return this.PlayerSocket; } set { this.PlayerSocket = value; } }
+            public string Name { get { return this.PlayerName; } }
+            public StringSocket Socket { get { return this.PlayerSocket; } }
             public int PlayerScore { get { return this.Score; } set { this.Score = value; } }
-            public HashSet<string> WordsPlayed { get { return this.Played_Words; } set { this.Played_Words = value; } }
-            public HashSet<string> LegalWords { get { return this.Legal_Words; } set { this.Legal_Words = value; } }
-            public HashSet<string> IllegalWords { get { return this.Illegal_Words; } set { this.Illegal_Words = value; } }
-            public HashSet<string> DuplicateWords { get { return this.Duplicate_Words; } set { this.Duplicate_Words = value; } }
+            public HashSet<string> WordsPlayed { get { return this.Played_Words; } }
+            public HashSet<string> LegalWords { get { return this.Legal_Words; } }
+            public HashSet<string> IllegalWords { get { return this.Illegal_Words; } }
+            public HashSet<string> DuplicateWords { get { return this.Duplicate_Words; } }
 
             /// <summary>
             /// Constructor used to initialize a new PlayerData instance. A PlayerData instance contains
