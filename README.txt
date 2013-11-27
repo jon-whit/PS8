@@ -10,7 +10,7 @@ We just wanted to let you know so that you don't deduct points from our solution
 in the high 90's. If you uncomment the try/catch clauses I guarantee you'll find 96% code coverage.
 
 
-** TODO: Uncomment the BeginSend command on the time          **
+** TODO: Uncomment the BeginSend command on with the CalculateTime function **
 
 
 
