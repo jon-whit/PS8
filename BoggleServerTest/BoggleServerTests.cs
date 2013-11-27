@@ -57,7 +57,7 @@ namespace BoggleServerTest
             // Illegally pass more than three parameters.
             BoggleServer.Main(new string[] { "arg1", "arg2", "arg3", "arg4" });
 
-            string expected = string.Format("Error: Invalid arguments.\r\nusage: BoggleServer time dictionary_path optional_string\r\n");
+            string expected = string.Format("Error: Invalid arguments.\r\nusage: BoggleServer time dictionary_path optional_string\r\nWrong Number of Args\r\n");
             string actual = sw1.ToString();
 
             Assert.AreEqual(expected, actual);
@@ -86,6 +86,8 @@ namespace BoggleServerTest
             BoggleServer.Main(new string[] { BoggleServerTests.DictionaryPath, "200" });
 
             actual = sw1.ToString();
+
+            expected = "Error: Invalid arguments.\r\nusage: BoggleServer time dictionary_path optional_string\r\n--> time must be a positive integer.\r\n";
 
             Assert.AreEqual(expected, actual);
             sw1.Close();
@@ -116,6 +118,7 @@ namespace BoggleServerTest
 
             actual = sw1.ToString();
 
+            expected = "Error: Invalid arguments.\r\nusage: BoggleServer time dictionary_path optional_string\r\n--> time must be a positive integer.\r\n";
             Assert.AreEqual(expected, actual);
             sw1.Close();
 
@@ -142,6 +145,8 @@ namespace BoggleServerTest
             BoggleServer.Main(new string[] { "200", BoggleServerTests.DictionaryPath, "arg" });
 
             actual = sw1.ToString();
+
+            expected = "Error: Invalid arguments.\r\nusage: BoggleServer time dictionary_path optional_string\r\n--> optional_string must be 16 characters.\r\n";
 
             Assert.AreEqual(expected, actual);
             sw1.Close();
@@ -239,14 +244,17 @@ namespace BoggleServerTest
                     s1 = s;
                     p1 = payload;
                     mre1.Set();
+                
             }
 
             // This is the callback for the second receive request.
             private void CompletedReceive2(String s, Exception o, object payload)
             {
+              
                     s2 = s;
                     p2 = payload;
                     mre2.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)
@@ -273,7 +281,6 @@ namespace BoggleServerTest
         public void TestClientDisconnections()
         {
             new ClientDisconnectTests().TestClientDisconnect1();
-            //new ClientDisconnectTests().TestClientDisconnect2();
         }
 
         /// <summary>
@@ -363,71 +370,22 @@ namespace BoggleServerTest
                 }
             }
 
-            public void TestClientDisconnect2()
-            {
-                    // Now test for when a client connects and then disconnects after giving 
-                    // the PLAY command
-                    mre1 = new ManualResetEvent(false);
-                    mre2 = new ManualResetEvent(false);
-                    mre3 = new ManualResetEvent(false);
-
-
-                    //Create three clients. Connect and send PLAY with the first client. 
-                    // Create a two clients to connect with the Boggle Server.
-                    TcpClient TestClient1 = new TcpClient("localhost", 2000);
-                    TcpClient TestClient2 = new TcpClient("localhost", 2000);
-                    TcpClient TestClient3 = new TcpClient("localhost", 2000);
-
-                    // Create a client socket and then a client string socket.
-                    Socket ClientSocket1 = TestClient1.Client;
-                    Socket ClientSocket2 = TestClient2.Client;
-                    Socket ClientSocket3 = TestClient3.Client;
-                    StringSocket ClientSS1 = new StringSocket(ClientSocket1, new UTF8Encoding());
-                    StringSocket ClientSS2 = new StringSocket(ClientSocket2, new UTF8Encoding());
-                    StringSocket ClientSS3 = new StringSocket(ClientSocket3, new UTF8Encoding());
-
-                try
-                {
-                    ClientSS1.BeginSend("PLAY Client1\n", (e, o) => { }, "1a");
-                    ClientSS1.Close();
-                    ClientSS1.BeginReceive(CompletedReceive1, null);
-
-                    Assert.AreEqual(true, mre1.WaitOne(timeout), "Timed out waiting 1a");
-                    Assert.AreEqual(null, s1);
-
-                    //Now send PLAY with the other two clients and assert that they are paried together.
-                    ClientSS2.BeginSend("PLAY Client2\n", (e, o) => { }, null);
-                    ClientSS3.BeginSend("PLAY Client3\n", (e, o) => { }, null);
-
-
-                    ClientSS2.BeginReceive(CompletedReceive2, "2a");
-                    ClientSS3.BeginReceive(CompletedReceive3, "3a");
-
-                    string ExpectedExpression = @"^(START) [a-zA-Z]{16} \d+ [a-zA-Z1-9]+";
-                    Assert.AreEqual(true, mre2.WaitOne(timeout), "Timed out waiting 2a");
-                    Assert.IsTrue(Regex.IsMatch(s2, ExpectedExpression));
-                    Assert.AreEqual(true, mre3.WaitOne(timeout), "Timed out waiting 3a");
-                    Assert.IsTrue(Regex.IsMatch(s3, ExpectedExpression));
-                }
-                finally
-                {
-
-                }
-            }
-
             private void CompletedReceive1(String s, Exception o, object payload)
             {
                     s1 = s;
                     p1 = payload;
                     mre1.Set();
+                
             }
 
             // This is the callback for the second receive request.
             private void CompletedReceive2(String s, Exception o, object payload)
             {
+              
                     s2 = s;
                     p2 = payload;
                     mre2.Set();
+                
             }
 
             // This is the callback for the second receive request.
@@ -436,6 +394,7 @@ namespace BoggleServerTest
                     s3 = s;
                     p3 = payload;
                     mre3.Set();
+                
             }
 
             // This is the callback for the second receive request.
@@ -444,6 +403,7 @@ namespace BoggleServerTest
                     s4 = s;
                     p4 = payload;
                     mre4.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)
@@ -544,6 +504,7 @@ namespace BoggleServerTest
                     s1 = s;
                     p1 = payload;
                     mre1.Set();
+                
             }
 
             // This is the callback for the second receive request.
@@ -552,6 +513,7 @@ namespace BoggleServerTest
                     s2 = s;
                     p2 = payload;
                     mre2.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)
@@ -716,9 +678,11 @@ namespace BoggleServerTest
 
             private void CompletedReceive1(String s, Exception o, object payload)
             {
+                
                     s1 = s;
                     p1 = payload;
                     mre1.Set();
+                
             }
 
             // This is the callback for the second receive request.
@@ -727,6 +691,7 @@ namespace BoggleServerTest
                     s2 = s;
                     p2 = payload;
                     mre2.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)
@@ -1042,42 +1007,50 @@ namespace BoggleServerTest
 
             private void CompletedReceive1(String s, Exception o, object payload)
             {
-                s1 = s;
-                p1 = payload;
-                mre1.Set();
+               
+                    s1 = s;
+                    p1 = payload;
+                    mre1.Set();
+                
             }
 
             // This is the callback for the second receive request.
             private void CompletedReceive2(String s, Exception o, object payload)
             {
-                s2 = s;
-                p2 = payload;
-                mre2.Set();
+                    s2 = s;
+                    p2 = payload;
+                    mre2.Set();
+                
             }
 
             private void CompletedReceive3(String s, Exception o, object payload)
             {
-                s3 = s;
-                p3 = payload;
-                mre3.Set();
+               
+                    s3 = s;
+                    p3 = payload;
+                    mre3.Set();
+                
             }
             private void CompletedReceive4(String s, Exception o, object payload)
             {
-                s4 = s;
-                p4 = payload;
-                mre4.Set();
+                    s4 = s;
+                    p4 = payload;
+                    mre4.Set();
+                
             }
             private void CompletedReceive5(String s, Exception o, object payload)
             {
-                s5 = s;
-                p5 = payload;
-                mre5.Set();
+                    s5 = s;
+                    p5 = payload;
+                    mre5.Set();
+                
             }
             private void CompletedReceive6(String s, Exception o, object payload)
             {
-                s6 = s;
-                p6 = payload;
-                mre6.Set();
+                    s6 = s;
+                    p6 = payload;
+                    mre6.Set();
+                
             }
             private void PlayCallback1(Exception error, Object Payload)
             {
@@ -1225,17 +1198,18 @@ namespace BoggleServerTest
 
             private void CompletedReceive1(String s, Exception o, object payload)
             {
-                s1 = s;
-                p1 = payload;
-                mre1.Set();
+                    s1 = s;
+                    p1 = payload;
+                    mre1.Set();
+                
             }
 
-            // This is the callback for the second receive request.
             private void CompletedReceive2(String s, Exception o, object payload)
             {
-                s2 = s;
-                p2 = payload;
-                mre2.Set();
+                    s2 = s;
+                    p2 = payload;
+                    mre2.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)
@@ -1621,32 +1595,35 @@ namespace BoggleServerTest
 
             private void CompletedReceive1(String s, Exception o, object payload)
             {
-                s1 = s;
-                p1 = payload;
-                mre1.Set();
+                    s1 = s;
+                    p1 = payload;
+                    mre1.Set();
+                
             }
 
-            // This is the callback for the second receive request.
             private void CompletedReceive2(String s, Exception o, object payload)
             {
-                s2 = s;
-                p2 = payload;
-                mre2.Set();
+               
+                    s2 = s;
+                    p2 = payload;
+                    mre2.Set();
+                
             }
 
             private void CompletedReceive3(String s, Exception o, object payload)
             {
-                s3 = s;
-                p3 = payload;
-                mre3.Set();
+                    s3 = s;
+                    p3 = payload;
+                    mre3.Set();
+                
             }
 
-            // This is the callback for the second receive request.
             private void CompletedReceive4(String s, Exception o, object payload)
             {
-                s4 = s;
-                p4 = payload;
-                mre4.Set();
+                    s4 = s;
+                    p4 = payload;
+                    mre4.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)
@@ -1742,32 +1719,36 @@ namespace BoggleServerTest
 
             private void CompletedReceive1(String s, Exception o, object payload)
             {
-                s1 = s;
-                p1 = payload;
-                mre1.Set();
+                    s1 = s;
+                    p1 = payload;
+                    mre1.Set();
+                
             }
 
-            // This is the callback for the second receive request.
             private void CompletedReceive2(String s, Exception o, object payload)
             {
-                s2 = s;
-                p2 = payload;
-                mre2.Set();
+             
+                    s2 = s;
+                    p2 = payload;
+                    mre2.Set();
+                
             }
 
             private void CompletedReceive3(String s, Exception o, object payload)
             {
-                s3 = s;
-                p3 = payload;
-                mre3.Set();
+                    s3 = s;
+                    p3 = payload;
+                    mre3.Set();
+                
             }
 
-            // This is the callback for the second receive request.
             private void CompletedReceive4(String s, Exception o, object payload)
             {
-                s4 = s;
-                p4 = payload;
-                mre4.Set();
+               
+                    s4 = s;
+                    p4 = payload;
+                    mre4.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)
@@ -1799,17 +1780,11 @@ namespace BoggleServerTest
             // Instance variables for the test
             private ManualResetEvent mre1;
             private ManualResetEvent mre2;
-            private ManualResetEvent mre3;
-            private ManualResetEvent mre4;
 
             private String s1;
             private object p1;
             private String s2;
             private object p2;
-            private String s3;
-            private object p3;
-            private String s4;
-            private object p4;
 
             TcpClient TestClient1;
             TcpClient TestClient2;
@@ -1989,7 +1964,7 @@ namespace BoggleServerTest
 
             }
 
-            private String[] BuildExpectedSummary(int a, int b, int c, int d, int e, HashSet<string> Client1LegalWords, HashSet<string> Client2LegalWords, HashSet<string>                                                    Client1IllegalWords, HashSet<string> Client2IllegalWords, HashSet<string> DuplicateWords)
+            private String[] BuildExpectedSummary(int a, int b, int c, int d, int e, HashSet<string> Client1LegalWords, HashSet<string> Client2LegalWords,                             HashSet<string> Client1IllegalWords, HashSet<string> Client2IllegalWords, HashSet<string> DuplicateWords)
             {
                 // Get the count of legal words that Player1 played and the corresponding
                 // whitespace seperated legal words.
@@ -2025,43 +2000,49 @@ namespace BoggleServerTest
             {
                 lock (IllegalWordsLock)
                 {
-                    s1 = s;
-                    p1 = payload;
+                        s1 = s;
+                        p1 = payload;
 
-                    if (s.StartsWith("STOP "))
-                    {
-                        mre1.Set();
-                    }
+                        if (s.StartsWith("STOP "))
+                        {
+                            mre1.Set();
+                        }
+                    
                 }
             }
 
-            // This is the callback for the second receive request.
             private void CompletedReceive2(String s, Exception o, object payload)
             {
                 lock (IllegalWordsLock)
                 {
-                    s2 = s;
-                    p2 = payload;
+                  
+                        s2 = s;
+                        p2 = payload;
 
-                    if (s.StartsWith("STOP "))
-                    {
-                        mre2.Set();
-                    }
+                        if (s.StartsWith("STOP "))
+                        {
+                            mre2.Set();
+                        }
+                    
                 }
             }
 
             private void StartReceive1(String s, Exception o, object payload)
             {
-                s1 = s;
-                p1 = payload;
-                mre1.Set();
+                
+                    s1 = s;
+                    p1 = payload;
+                    mre1.Set();
+                
             }
 
             private void StartReceive2(String s, Exception o, object payload)
             {
-                s2 = s;
-                p2 = payload;
-                mre2.Set();
+               
+                    s2 = s;
+                    p2 = payload;
+                    mre2.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)
@@ -2199,6 +2180,7 @@ namespace BoggleServerTest
                     s1 = s;
                     p1 = payload;
                     mre1.Set();
+                
             }
 
             // This is the callback for the second receive request.
@@ -2206,28 +2188,31 @@ namespace BoggleServerTest
             {
                 lock (IllegalWordsLock)
                 {
-                    s2 = s;
-                    p2 = payload;
+                        s2 = s;
+                        p2 = payload;
 
-                    if (s.StartsWith("STOP "))
-                    {
-                        mre2.Set();
-                    }
+                        if (s.StartsWith("STOP "))
+                        {
+                            mre2.Set();
+                        }
+                    
                 }
             }
 
             private void StartReceive1(String s, Exception o, object payload)
             {
-                s1 = s;
-                p1 = payload;
-                mre1.Set();
+                    s1 = s;
+                    p1 = payload;
+                    mre1.Set();
+                
             }
 
             private void StartReceive2(String s, Exception o, object payload)
             {
-                s2 = s;
-                p2 = payload;
-                mre2.Set();
+                    s2 = s;
+                    p2 = payload;
+                    mre2.Set();
+                
             }
 
             private void PlayCallback1(Exception error, Object Payload)

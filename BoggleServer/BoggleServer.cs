@@ -34,6 +34,7 @@ namespace BS
             {
                 Console.WriteLine("Error: Invalid arguments.");
                 Console.WriteLine("usage: BoggleServer time dictionary_path optional_string");
+                Console.WriteLine("Wrong Number of Args");
                 return;
             }
 
@@ -50,6 +51,7 @@ namespace BS
             {
                 Console.WriteLine("Error: Invalid arguments.");
                 Console.WriteLine("usage: BoggleServer time dictionary_path optional_string");
+                Console.WriteLine("--> time must be a positive integer.");
                 return;
             }
 
@@ -72,6 +74,7 @@ namespace BS
                 args[2].All(Char.IsLetter);
                 Console.WriteLine("Error: Invalid arguments.");
                 Console.WriteLine("usage: BoggleServer time dictionary_path optional_string");
+                Console.WriteLine("--> optional_string must be 16 characters.");
                 return;
             }
 
@@ -128,9 +131,13 @@ namespace BS
                 UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
 
             }
-            catch (Exception)
-            {
 
+            // If any exception occured when starting the sever or connecting clients,
+            // print out an error message and the stacktrace where the error occured.
+            catch (Exception e)
+            {
+                Console.WriteLine("An Exception Occured When Building the BoggleServer:");
+                Console.WriteLine(e.ToString());
             }
         }
 
@@ -145,16 +152,24 @@ namespace BS
         {
             lock (ConnectionReceivedLock)
             {
-                Socket socket = UnderlyingServer.EndAcceptSocket(ar);
-                StringSocket ss = new StringSocket(socket, UTF8Encoding.Default);
+                try
+                {
+                    Socket socket = UnderlyingServer.EndAcceptSocket(ar);
+                    StringSocket ss = new StringSocket(socket, UTF8Encoding.Default);
 
-                // Begin receiving commands from the client. The first command should 
-                // always be PLAY @, where @ is the name of the player. If it is not, 
-                // then handle the command appropriately.
-                ss.BeginReceive(ServerCommandReceived, ss);
+                    // Begin receiving commands from the client. The first command should 
+                    // always be PLAY @, where @ is the name of the player. If it is not, 
+                    // then handle the command appropriately.
+                    ss.BeginReceive(ServerCommandReceived, ss);
 
-                // Wait for more clients to connect.
-                UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
+                    // Wait for more clients to connect.
+                    UnderlyingServer.BeginAcceptSocket(ConnectionReceived, null);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("An Exception Occured with a Client Connection:");
+                    Console.WriteLine(e.ToString());   
+                }
             }
         }
 
@@ -166,18 +181,36 @@ namespace BS
         /// there are no waiting players, then the waiting player is stored until a new client
         /// connects.
         /// </summary>
-        private void ServerCommandReceived(String Command, Exception e, Object PlayerStringSocket)
+        private void ServerCommandReceived(String Command, Exception e, object PlayerStringSocket)
         {
             lock (CommandReceived)
             {
+                // If there was an exception that occured in the StringSocket associated with 
+                // the given payload, then print out an error message and the stacktrace.
+                if (!object.ReferenceEquals(e, null))
+                {
+                    Console.WriteLine("An Exception Occured when Receiving a Server Command:");
+                    Console.WriteLine(e.ToString());
+                    return;
+                }
+               
                 StringSocket PlayersSocket = (StringSocket)PlayerStringSocket;
 
                 // If Command is null then the client disconnected. Close the socket
                 // and return from this method call.
                 if (object.ReferenceEquals(null, Command))
                 {
-                    PlayersSocket.Close();
-                    return;
+                    try
+                    {
+                        PlayersSocket.Close();
+                        return;
+                    }
+                    catch (Exception exception)
+                    {
+                        Console.WriteLine("An Exception Occured when Closing a StringSocket:");
+                        Console.WriteLine(exception.ToString());
+                        return;
+                    }
                 }
 
                 // If the message received is PLAY @ with @ being the name of the player, then do 
@@ -194,7 +227,7 @@ namespace BS
 
                     // If there is nobody else waiting to play, then store the player and
                     // wait for another to join.
-                    if (WaitingPlayer == null || !WaitingPlayer.Socket.Connected)
+                    if (WaitingPlayer == null)
                     {
                         WaitingPlayer = NewPlayer;
                         Console.WriteLine(NewPlayer.Name + " Connected");
@@ -224,9 +257,18 @@ namespace BS
                         // reduce the workload that the server has to worry about.
                         ThreadStart Workload = new ThreadStart(NewGame.RunGame);
                         Thread RunGame = new Thread(Workload);
-                        RunGame.Start();
-                    }
 
+                        try
+                        {
+                            RunGame.Start();
+                        }
+                        catch (Exception exception)
+                        {
+                            Console.WriteLine("An Exception Occured when Starting a Game:");
+                            Console.WriteLine(exception.ToString());
+                            return;
+                        }
+                    }
                 }
 
                 // If the client didn't send the PLAY command, then print an IGNORING message
@@ -236,9 +278,24 @@ namespace BS
                     StringSocket ss;
                     ss = (StringSocket)PlayerStringSocket;
 
-                    ss.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
+                    ss.BeginSend("IGNORING " + Command + "\n", ServerSendCallback, null);
                     ss.BeginReceive(ServerCommandReceived, ss);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Callback used to process messages being sent out by the server.
+        /// </summary>
+        /// <param name="e"></param>
+        /// <param name="Payload"></param>
+        private void ServerSendCallback(Exception e, object Payload)
+        {
+            if (!object.ReferenceEquals(e, null))
+            {
+                Console.WriteLine("An Exception Occured when Sending an IGNORING Command:");
+                Console.WriteLine(e.ToString());
+                return;
             }
         }
 
@@ -274,7 +331,7 @@ namespace BS
             public Game(PlayerData Player1, PlayerData Player2, int GameTime, HashSet<string> DictionaryWords, String OptionalString)
             {
                 // Create a BoggleBoard with or without the OptionalString according to what was given.
-                if(OptionalString == null)
+                if(object.ReferenceEquals(OptionalString, null))
                     this.GameBoard = new BoggleBoard();
                 else
                     this.GameBoard = new BoggleBoard(OptionalString);
@@ -297,13 +354,23 @@ namespace BS
             public void RunGame()
             {
                 // Send the START command to both Players
-                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player2.Name + "\n", (e, o) => { }, null);
-                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player1.Name + "\n", (e, o) => { }, null);
+                Player1.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player2.Name + "\n", GameCommandSent, Player1);
+                Player2.Socket.BeginSend("START" + " " + GameBoard.ToString() + " " + GameTime + " " + Player1.Name + "\n", GameCommandSent, Player2);
 
-                // Start counting the time on a different thread.
-                ThreadStart TimeCounter = new ThreadStart(CalculateTime);
-                Thread CalcTime = new Thread(TimeCounter);
-                CalcTime.Start();
+                Thread CalcTime;
+                try
+                {
+                    // Start counting the time on a different thread.
+                    ThreadStart TimeCounter = new ThreadStart(CalculateTime);
+                    CalcTime = new Thread(TimeCounter);
+                    CalcTime.Start();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("An Exception Occured when Initializing the Timer:");
+                    Console.WriteLine(e.ToString());
+                    return;
+                }
 
                 // Start receiving words from both Players. 
                 Player1.Socket.BeginReceive(CommandRecieved, Player1);
@@ -329,8 +396,8 @@ namespace BS
                 for (; GameTime > 0; GameTime--)
                 {
                     // Send the TIME command with the current time to the clients.
-                    // Player1.Socket.BeginSend("TIME " + GameTime + "\n", TimeCallback, Player1);
-                    // Player2.Socket.BeginSend("TIME " + GameTime + "\n", TimeCallback, Player2);
+                    //Player1.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player1);
+                    //Player2.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player2);
 
                     // Sleep for one second
                     Thread.Sleep(1000);
@@ -338,11 +405,6 @@ namespace BS
 
                 // When time is out, set GameFinished variable to true. 
                 GameFinished = true;
-            }
-
-            private void TimeCallback(Exception e, object Payload)
-            {
-
             }
 
             /// <summary>
@@ -371,10 +433,17 @@ namespace BS
             /// <param name="Command">The string sent from the client</param>
             /// <param name="Problem">The exception that caused the send to fail</param>
             /// <param name="Payload"></param>
-            private void CommandRecieved(String Command, Exception Problem, Object Payload)
+            private void CommandRecieved(String Command, Exception e, Object Payload)
             {
                 lock (WordPlayedLock)
                 {
+                    if (!object.ReferenceEquals(null, e))
+                    {
+                            Console.WriteLine("An Exception Occured when Receiving a Players Command:");
+                            Console.WriteLine(e.ToString());
+                            return;
+                    }
+
                     PlayerData Player = (PlayerData)Payload;
 
                     // If the game is finished, ignore any other incoming Commands. 
@@ -385,17 +454,26 @@ namespace BS
                     // client and print a message indicating the termination of the game.
                     if (object.ReferenceEquals(null, Command))
                     {
-                        Console.WriteLine(Player.Name + " Disconnected");
-                        if (Player == Player1)
+                        try
                         {
-                            Player2.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
-                            Player2.Socket.Close();
-                            return;
+                            Console.WriteLine(Player.Name + " Disconnected");
+                            if (Player == Player1)
+                            {
+                                Player2.Socket.BeginSend("TERMINATED" + "\n", GameCommandSent, Player);
+                                Player2.Socket.Close();
+                                return;
+                            }
+                            else
+                            {
+                                Player1.Socket.BeginSend("TERMINATED" + "\n", GameCommandSent, Player);
+                                Player1.Socket.Close();
+                                return;
+                            }
                         }
-                        else
+                        catch (Exception exception)
                         {
-                            Player1.Socket.BeginSend("TERMINATED" + "\n", (e, o) => { }, Player);
-                            Player1.Socket.Close();
+                            Console.WriteLine("An Exception Occured while Closing a Players Socket:");
+                            Console.WriteLine(exception.ToString());
                             return;
                         }
                     }
@@ -416,16 +494,35 @@ namespace BS
                         // the score. Return the results to the user if any changes
                         // occured to the score.
                         CalculateScore(WordPlayed, Player);
+
+                        // Begin receiving more commands from the player.
+                        Player.Socket.BeginReceive(CommandRecieved, Player);
                     }
 
                     // If the Command was anything else, reply with IGNORING and the Command.
                     else
                     {
-                        Player.Socket.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
+                        Player.Socket.BeginSend("IGNORING " + Command + "\n", GameCommandSent, Player);
+                     
+                        // Begin receiving more commands from the player.
+                        Player.Socket.BeginReceive(CommandRecieved, Player);
                     }
+                }
+            }
 
-                    // Begin receiving more commands from the player.
-                    Player.Socket.BeginReceive(CommandRecieved, Player);
+            /// <summary>
+            /// Callback invoked when a message has been successfully sent from the server. 
+            /// If an exception occured when sending, print out an error and the stacktrace.
+            /// </summary>
+            /// <param name="e"></param>
+            /// <param name="Payload"></param>
+            private void GameCommandSent(Exception e, object Payload)
+            {
+                if (!object.ReferenceEquals(e, null))
+                {
+                    Console.WriteLine("An Exception Occured when Sending a Command during the Game:");
+                    Console.WriteLine(e.ToString());
+                    return;
                 }
             }
 
@@ -562,8 +659,8 @@ namespace BS
             /// </summary>
             private void SendScore()
             {
-                Player1.Socket.BeginSend("SCORE " + Player1.PlayerScore + " " + Player2.PlayerScore + "\n", (e, o) => { }, null);
-                Player2.Socket.BeginSend("SCORE " + Player2.PlayerScore + " " + Player1.PlayerScore + "\n", (e, o) => { }, null);
+                Player1.Socket.BeginSend("SCORE " + Player1.PlayerScore + " " + Player2.PlayerScore + "\n", GameCommandSent, Player1);
+                Player2.Socket.BeginSend("SCORE " + Player2.PlayerScore + " " + Player1.PlayerScore + "\n", GameCommandSent, Player2);
             }
 
             /// <summary>
@@ -603,8 +700,8 @@ namespace BS
                 string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7}\n", FormatArgs);
 
                 // Send the game summary results to each player.
-                Player1.Socket.BeginSend(Player1Summary, (e, o) => { }, null);
-                Player2.Socket.BeginSend(Player2Summary, (e, o) => { }, null);
+                Player1.Socket.BeginSend(Player1Summary, GameCommandSent, Player1);
+                Player2.Socket.BeginSend(Player2Summary, GameCommandSent, Player2);
             }
         }
         #endregion
