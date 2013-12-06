@@ -231,6 +231,7 @@ namespace BS
                     {
                         WaitingPlayer = NewPlayer;
                         Console.WriteLine(NewPlayer.Name + " Connected");
+                        WaitingPlayer.Socket.BeginReceive(ConnectionWaitingCallback, this);
                     }
 
                     // If there is somebody waiting for a game, then get both players and 
@@ -283,6 +284,21 @@ namespace BS
                 }
             }
         }
+
+        private void ConnectionWaitingCallback(String Command, Exception e, Object Payload)
+        {
+            if(Object.ReferenceEquals(Command, null))
+                WaitingPlayer = null;
+            else if (!Object.ReferenceEquals(WaitingPlayer.OngoingGame, null))
+                WaitingPlayer.OngoingGame.CommandRecieved(Command, e, Payload);
+            else
+            {
+                PlayerData Player = (PlayerData)Payload;
+                Player.Socket.BeginSend("IGNORING " + Command + "\n", (ex, o) => { }, null);
+                Player.Socket.BeginReceive(ConnectionWaitingCallback, Player);
+            }
+        }
+
 
         /// <summary>
         /// Callback used to process messages being sent out by the server.
@@ -396,8 +412,8 @@ namespace BS
                 for (; GameTime > 0; GameTime--)
                 {
                     // Send the TIME command with the current time to the clients.
-                    //Player1.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player1);
-                    //Player2.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player2);
+                    // Player1.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player1);
+                    // Player2.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player2);
 
                     // Sleep for one second
                     Thread.Sleep(1000);
@@ -433,7 +449,7 @@ namespace BS
             /// <param name="Command">The string sent from the client</param>
             /// <param name="Problem">The exception that caused the send to fail</param>
             /// <param name="Payload"></param>
-            private void CommandRecieved(String Command, Exception e, Object Payload)
+            public void CommandRecieved(String Command, Exception e, Object Payload)
             {
                 lock (WordPlayedLock)
                 {
@@ -712,17 +728,19 @@ namespace BS
         /// </summary>
         private class PlayerData
         {
-            string PlayerName;                // The name of the player
-            StringSocket PlayerSocket;        // The StringSocket associated with the PlayerName.                
-            int Score;                        // The current score of the player.
-            HashSet<string> Played_Words;      // All words the player has found in the current game. 
-            HashSet<string> Legal_Words;
-            HashSet<string> Illegal_Words;
-            HashSet<string> Duplicate_Words;
+            private string PlayerName;                // The name of the player
+            private StringSocket PlayerSocket;        // The StringSocket associated with the PlayerName.    
+            private Game Ongoing_Game;        // The Current game the player is involved in. 
+            private int Score;                        // The current score of the player.
+            private HashSet<string> Played_Words;      // All words the player has found in the current game. 
+            private HashSet<string> Legal_Words;
+            private HashSet<string> Illegal_Words;
+            private HashSet<string> Duplicate_Words;
 
 
             // Public Properties used to get the member variables of a given PlayerData instance:
             public string Name { get { return this.PlayerName; } }
+            public Game OngoingGame { get { return this.Ongoing_Game; } }
             public StringSocket Socket { get { return this.PlayerSocket; } }
             public int PlayerScore { get { return this.Score; } set { this.Score = value; } }
             public HashSet<string> WordsPlayed { get { return this.Played_Words; } }
