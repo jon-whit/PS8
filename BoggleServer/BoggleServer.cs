@@ -231,7 +231,7 @@ namespace BS
                     {
                         WaitingPlayer = NewPlayer;
                         Console.WriteLine(NewPlayer.Name + " Connected");
-                        WaitingPlayer.Socket.BeginReceive(ConnectionWaitingCallback, this);
+                        WaitingPlayer.Socket.BeginReceive(ConnectionWaitingCallback, WaitingPlayer);
                     }
 
                     // If there is somebody waiting for a game, then get both players and 
@@ -245,7 +245,6 @@ namespace BS
 
                         // There are no more players waiting. Set WaitingPlayer = null for
                         // future checks.
-                        WaitingPlayer = null;
 
                         // Build a new Game object with both players.
                         Game NewGame;
@@ -287,10 +286,16 @@ namespace BS
 
         private void ConnectionWaitingCallback(String Command, Exception e, Object Payload)
         {
-            if(Object.ReferenceEquals(Command, null))
+            if (Object.ReferenceEquals(Command, null))
+            {
+                Console.WriteLine(WaitingPlayer.Name + " Disconnected");
                 WaitingPlayer = null;
+            }
             else if (!Object.ReferenceEquals(WaitingPlayer.OngoingGame, null))
+            {
                 WaitingPlayer.OngoingGame.CommandRecieved(Command, e, Payload);
+                WaitingPlayer = null;
+            }
             else
             {
                 PlayerData Player = (PlayerData)Payload;
@@ -412,8 +417,8 @@ namespace BS
                 for (; GameTime > 0; GameTime--)
                 {
                     // Send the TIME command with the current time to the clients.
-                    // Player1.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player1);
-                    // Player2.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player2);
+                    Player1.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player1);
+                    Player2.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player2);
 
                     // Sleep for one second
                     Thread.Sleep(1000);
