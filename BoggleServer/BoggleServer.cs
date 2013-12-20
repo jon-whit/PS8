@@ -396,8 +396,8 @@ namespace BS
                 for (; GameTime > 0; GameTime--)
                 {
                     // Send the TIME command with the current time to the clients.
-                    //Player1.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player1);
-                    //Player2.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player2);
+                    Player1.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player1);
+                    Player2.Socket.BeginSend("TIME " + GameTime + "\n", GameCommandSent, Player2);
 
                     // Sleep for one second
                     Thread.Sleep(1000);
@@ -420,8 +420,7 @@ namespace BS
                 // Build and send out the game summary.
                 SendGameSummary();
 
-                Player1.Socket.Close();
-                Player2.Socket.Close();
+                // The String Sockets will be closed in the GameSummarySent callback.
             }
 
             /// <summary>
@@ -700,8 +699,20 @@ namespace BS
                 string Player2Summary = string.Format("STOP {2} {3} {0} {1} {4} {5} {8} {9} {6} {7}\n", FormatArgs);
 
                 // Send the game summary results to each player.
-                Player1.Socket.BeginSend(Player1Summary, GameCommandSent, Player1);
-                Player2.Socket.BeginSend(Player2Summary, GameCommandSent, Player2);
+                Player1.Socket.BeginSend(Player1Summary, GameSummarySent, Player1);
+                Player2.Socket.BeginSend(Player2Summary, GameSummarySent, Player2);
+            }
+
+            private void GameSummarySent(Exception e, Object payload)
+            {
+                if (!object.ReferenceEquals(e, null))
+                {
+                    Console.WriteLine("An Exception Occured when Sending a Command during the Game:");
+                    Console.WriteLine(e.ToString());
+                }
+
+                PlayerData player = (PlayerData)payload;
+                player.Socket.Close();
             }
         }
         #endregion
